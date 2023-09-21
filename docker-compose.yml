@@ -1,0 +1,26 @@
+version: "3.8"
+services:
+  soni:
+    env_file:
+      - .env
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kennytat/uvr:stable
+    container_name: uvr
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    # shm_size: 1024m
+    ports:
+      - 6870:6870
+    # environment:
+    #   COPY_OUTPUT_DIR: ""
+    #   AUTH_USER: ""
+    #   AUTH_PASS: ""
+    volumes:
+      - /mnt/backup/AI/ultimatevocalremovergui/models:/app/models

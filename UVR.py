@@ -782,9 +782,9 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                                         'drums_secondary_model': self.vr_drums_secondary_model_var,
                                         'is_secondary_model_activate': self.vr_is_secondary_model_activate_var,
                                         'voc_inst_secondary_model_scale': self.vr_voc_inst_secondary_model_scale_var,
-							            'other_secondary_model_scale': self.vr_other_secondary_model_scale_var,
-							            'bass_secondary_model_scale': self.vr_bass_secondary_model_scale_var,
-							            'drums_secondary_model_scale': self.vr_drums_secondary_model_scale_var}
+                          'other_secondary_model_scale': self.vr_other_secondary_model_scale_var,
+                          'bass_secondary_model_scale': self.vr_bass_secondary_model_scale_var,
+                          'drums_secondary_model_scale': self.vr_drums_secondary_model_scale_var}
         
         self.demucs_secondary_model_vars = {'voc_inst_secondary_model': self.demucs_voc_inst_secondary_model_var,
                                         'other_secondary_model': self.demucs_other_secondary_model_var,
@@ -792,9 +792,9 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                                         'drums_secondary_model': self.demucs_drums_secondary_model_var,
                                         'is_secondary_model_activate': self.demucs_is_secondary_model_activate_var,
                                         'voc_inst_secondary_model_scale': self.demucs_voc_inst_secondary_model_scale_var,
-							            'other_secondary_model_scale': self.demucs_other_secondary_model_scale_var,
-							            'bass_secondary_model_scale': self.demucs_bass_secondary_model_scale_var,
-							            'drums_secondary_model_scale': self.demucs_drums_secondary_model_scale_var}
+                          'other_secondary_model_scale': self.demucs_other_secondary_model_scale_var,
+                          'bass_secondary_model_scale': self.demucs_bass_secondary_model_scale_var,
+                          'drums_secondary_model_scale': self.demucs_drums_secondary_model_scale_var}
         
         self.mdx_secondary_model_vars = {'voc_inst_secondary_model': self.mdx_voc_inst_secondary_model_var,
                                         'other_secondary_model': self.mdx_other_secondary_model_var,
@@ -802,9 +802,9 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                                         'drums_secondary_model': self.mdx_drums_secondary_model_var,
                                         'is_secondary_model_activate': self.mdx_is_secondary_model_activate_var,
                                         'voc_inst_secondary_model_scale': self.mdx_voc_inst_secondary_model_scale_var,
-							            'other_secondary_model_scale': self.mdx_other_secondary_model_scale_var,
-							            'bass_secondary_model_scale': self.mdx_bass_secondary_model_scale_var,
-							            'drums_secondary_model_scale': self.mdx_drums_secondary_model_scale_var}
+                          'other_secondary_model_scale': self.mdx_other_secondary_model_scale_var,
+                          'bass_secondary_model_scale': self.mdx_bass_secondary_model_scale_var,
+                          'drums_secondary_model_scale': self.mdx_drums_secondary_model_scale_var}
 
         #Main Application Vars
         self.progress_bar_main_var = tk.IntVar(value=0)
@@ -1515,7 +1515,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         """Deletes temp files"""
         
         DIRECTORIES = (BASE_PATH, VR_MODELS_DIR, MDX_MODELS_DIR, DEMUCS_MODELS_DIR, DEMUCS_NEWER_REPO_DIR)
-        EXTENSIONS = (('.aes', '.txt', '.tmp'))
+        EXTENSIONS = (('.aes', '.tmp'))
         
         try:
             if os.path.isfile(f"{current_patch}{application_extension}"):
@@ -3129,7 +3129,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             manual_downloads_menu_select_DEMUCS_Option.add_radiobutton(label=model_selection_demucs, variable=model_selection_var, command=get_links)
             
         manual_downloads_menu_select_Option.grid(row=2,column=0,padx=0,pady=5)
-	
+  
         self.menu_placement(manual_downloads_menu, "Manual Downloads", pop_up=True, close_function=lambda:manual_downloads_menu.destroy())
         
     def pop_up_save_current_settings(self):
@@ -4635,6 +4635,17 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
         inputPaths = self.inputPaths
         inputPath_total_len = len(inputPaths)
         is_model_sample_mode = self.model_sample_mode_var.get()
+        print("process_start::")
+        print(stime)
+        print(time_elapsed)
+        print(export_path)
+        print(inputPaths)
+        print(is_model_sample_mode)
+        print(self.chosen_process_method_var.get())
+        print("self.vr_model_var.get()::",self.vr_model_var.get())
+        print("self.mdx_net_model_var.get()::", self.mdx_net_model_var.get())
+        print("self.demucs_model_var.get()::", self.demucs_model_var.get())
+        
         try:
             if self.chosen_process_method_var.get() == ENSEMBLE_MODE:
                 model, ensemble = self.assemble_model_data(), Ensembler()
@@ -4651,6 +4662,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
             true_model_4_stem_count = sum(m.demucs_4_stem_added_count if m.process_method == DEMUCS_ARCH_TYPE else 0 for m in model)
             true_model_pre_proc_model_count = sum(2 if m.pre_proc_model_activated else 0 for m in model)
             true_model_count = sum(2 if m.is_secondary_model_activated else 1 for m in model) + true_model_4_stem_count + true_model_pre_proc_model_count
+            print("true_model_count::", true_model_count)
 
             for file_num, audio_file in enumerate(inputPaths, start=1):
                 self.cached_sources_clear()
@@ -4662,7 +4674,7 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                     is_verified_audio = True
                 else:
                     error_text_console = f'{base_text}"{os.path.basename(audio_file)}\" is missing or currupted.\n'
-                    self.command_Text.write(f'\n{error_text_console}') if inputPath_total_len >= 2 else None
+                    print(f'\n{error_text_console}') if inputPath_total_len >= 2 else None
                     self.iteration += true_model_count
                     is_verified_audio = False
                     continue
@@ -4671,10 +4683,10 @@ class MainWindow(TkinterDnD.Tk if is_dnd_compatible else tk.Tk):
                     self.iteration += 1
 
                     if is_ensemble:
-                        self.command_Text.write(f'Ensemble Mode - {current_model.model_basename} - Model {current_model_num}/{len(model)}{NEW_LINES}')
+                        print(f'Ensemble Mode - {current_model.model_basename} - Model {current_model_num}/{len(model)}{NEW_LINES}')
 
                     model_name_text = f'({current_model.model_basename})' if not is_ensemble else ''
-                    self.command_Text.write(base_text + f'Loading model {model_name_text}...')
+                    print(base_text + f'Loading model {model_name_text}...')
 
                     progress_kwargs = {'model_count': true_model_count,
                                        'total_files': inputPath_total_len}
