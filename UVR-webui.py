@@ -1056,7 +1056,7 @@ class UVR():
                 audio_converted_file = os.path.join(export_path, f'{audio_file_base}_({INST_STEM}).wav')
                 if not is_audio and os.path.exists(video_file):
                   media_output_file = os.path.join(export_path, os.path.basename(video_file))
-                  os.system(f"ffmpeg -i '{video_file}' -i '{audio_converted_file}' -c:v copy -c:a copy -map 0:v -map 1:a -shortest '{media_output_file}'")
+                  os.system(f"ffmpeg -i '{video_file}' -i '{audio_converted_file}' -c:v copy -c:a aac -map 0:v -map 1:a -shortest '{media_output_file}'")
                 else:
                   media_output_file = audio_converted_file
                   
@@ -1144,7 +1144,7 @@ class UVR():
       print("link_inputs::", link_inputs)
       if link_inputs is not None and len(link_inputs) > 0 and link_inputs[0] != '':
         for url in link_inputs:
-          print('testing url::', url.startswith( 'https://www.youtube.com' ))
+          url = url.strip()
           if url.startswith('https://www.youtube.com'):
             media_info =  ydl.extract_info(url, download=False)
             download_path = f"{os.path.join(youtube_temp_dir, media_info['title'])}.mp4"
@@ -1167,7 +1167,7 @@ class UVR():
             background_fill_primary ="#171717",
             panel_background_fill = "transparent"
         )
-        with gr.Blocks(theme=theme) as demo:
+        with gr.Blocks(title="UVR",theme=theme) as demo:
             gr.Markdown(title)
             gr.Markdown(description)
 
