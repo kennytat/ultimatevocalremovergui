@@ -165,10 +165,9 @@ sudo apt-get update
 sudo apt install ffmpeg
 conda create -n uvr python=3.10.12
 conda activate uvr
-pip install scikit-learn
-cat requirements.txt | xargs -n 1 pip install
-OR
 pip install -r requirements.txt
+OR
+cat requirements.txt | xargs -n 1 pip install
 ```
 
 </details>

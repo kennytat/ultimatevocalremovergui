@@ -6,6 +6,8 @@ RUN apt -y install -qq aria2 ffmpeg wget curl git
 
 WORKDIR /app
 
+RUN pip install scikit-learn
+
 COPY requirements.txt ./
 
 RUN pip install -r requirements.txt 

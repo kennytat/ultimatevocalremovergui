@@ -1177,7 +1177,7 @@ class UVR():
                 with gr.Row():
                     with gr.Column():
                         #media_input = gr.UploadButton("Click to Upload a video", file_types=["video"], file_count="single") #gr.Video() # height=300,width=300
-                        media_input = gr.File(label="VIDEO|AUDIO", interactive=True, file_count='single', file_types=['audio','video'])
+                        media_input = gr.File(label="VIDEO|AUDIO", interactive=True, file_count='multiple', file_types=['audio','video'])
                         link_input = gr.Textbox(label="Youtube Link",info="Example: https://www.youtube.com/watch?v=-biOGdYiF-I,https://www.youtube.com/watch?v=-biOGdYiF-I", placeholder="URL goes here, seperate by comma...")        
                         gr.ClearButton(components=[media_input,link_input], size='sm')
                         with gr.Row():
