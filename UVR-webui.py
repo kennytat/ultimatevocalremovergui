@@ -1136,6 +1136,7 @@ class UVR():
 
     def preprocess(self, media_inputs, link_inputs, uvr_method, uvr_model, progress=gr.Progress()):
       media_inputs = media_inputs if media_inputs is not None else []
+      media_inputs = media_inputs if isinstance(media_inputs, list) else [media_inputs]
       media_inputs = [media_input if isinstance(media_input, str) else media_input.name for media_input in media_inputs]
       youtube_temp_dir = os.path.join(temp_dir, 'youtube')
       Path(youtube_temp_dir).mkdir(parents=True, exist_ok=True)
@@ -1176,7 +1177,7 @@ class UVR():
                 with gr.Row():
                     with gr.Column():
                         #media_input = gr.UploadButton("Click to Upload a video", file_types=["video"], file_count="single") #gr.Video() # height=300,width=300
-                        media_input = gr.Files(label="VIDEO|AUDIO", file_types=['audio','video'])
+                        media_input = gr.File(label="VIDEO|AUDIO", interactive=True, file_count='single', file_types=['audio','video'])
                         link_input = gr.Textbox(label="Youtube Link",info="Example: https://www.youtube.com/watch?v=-biOGdYiF-I,https://www.youtube.com/watch?v=-biOGdYiF-I", placeholder="URL goes here, seperate by comma...")        
                         gr.ClearButton(components=[media_input,link_input], size='sm')
                         with gr.Row():
@@ -1238,14 +1239,18 @@ class UVR():
     
         auth_user = os.getenv('AUTH_USER', '')
         auth_pass = os.getenv('AUTH_PASS', '')
-        demo.launch(
+        demo.queue(concurrency_count=1).launch(
           auth=(auth_user, auth_pass) if auth_user != '' and auth_pass != '' else None,
-          share=False,     
+          show_api=False,
+          debug=True,
+          inbrowser=True,
+          show_error=True,
           server_name="0.0.0.0",
           server_port=6870,
           enable_queue=True,
-          quiet=True, 
-          debug=False)
+          # quiet=True, 
+          share=False   
+          )
 
 if __name__ == "__main__":
   Path(temp_dir).mkdir(parents=True, exist_ok=True)

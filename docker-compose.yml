@@ -16,6 +16,7 @@ services:
               count: 1
               capabilities: [gpu]
     # shm_size: 1024m
+    restart: unless-stopped
     ports:
       - 6870:6870
     # environment:
