@@ -12,6 +12,9 @@ import shutil
 import sys
 import yt_dlp
 import ffmpeg
+import gc
+import re
+import ass
 # import soundfile as sf
 import time
 import torch
@@ -24,10 +27,13 @@ from gui_data.tkinterdnd2 import TkinterDnD, DND_FILES
 from lib_v5.vr_network.model_param_init import ModelParameters
 from pathlib  import Path
 from separate import SeperateDemucs, SeperateMDX, SeperateVR, save_format
+import whisperx
+from whisperx.utils import LANGUAGES as LANG_TRANSCRIPT
+from whisperx.alignment import DEFAULT_ALIGN_MODELS_TORCH as DAMT, DEFAULT_ALIGN_MODELS_HF as DAMHF
 from typing import List
 import sys
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 logging.info('UVR BEGIN')
@@ -35,6 +41,20 @@ logging.info('UVR BEGIN')
 load_dotenv()
 temp_dir = os.path.join(tempfile.gettempdir(), "ultimatevocalremover")
 ydl = yt_dlp.YoutubeDL()
+
+CUDA_MEM = int(torch.cuda.get_device_properties(0).total_memory)
+print("CUDA_MEM::", CUDA_MEM)
+if torch.cuda.is_available():
+    device = "cuda"
+    list_compute_type = ['float16', 'float32']
+    compute_type_default = 'float16'
+    whisper_model_default = 'large-v2' if CUDA_MEM > 9000000000 else 'medium'
+else:
+    device = "cpu"
+    list_compute_type = ['float32']
+    compute_type_default = 'float32'
+    whisper_model_default = 'medium'
+print('Working in: ', device)
 
 def new_dir_now():
     now = datetime.now() # current date and time
@@ -912,7 +932,63 @@ class UVR():
             return is_good
         else:
             return is_good, error_data
-                
+
+    def speech_to_segments(self, audio_wav, WHISPER_MODEL_SIZE=whisper_model_default, language=None, batch_size=8):
+      print("Start speech_to_segments::")
+      device = "cuda" if torch.cuda.is_available() else "cpu"
+      model = whisperx.load_model(
+          WHISPER_MODEL_SIZE,
+          device,
+          compute_type=compute_type_default,
+          language=language,
+          )
+      audio = whisperx.load_audio(audio_wav)
+      print("Transcribing::")
+      result = model.transcribe(audio, batch_size=batch_size)
+      gc.collect(); torch.cuda.empty_cache(); del model
+      print("Aligning::")
+      model_a, metadata = whisperx.load_align_model(
+          language_code=result["language"],
+          device=device,
+          model_name=None
+          )
+      result = whisperx.align(
+          result["segments"],
+          model_a,
+          metadata,
+          audio,
+          device,
+          return_char_alignments=True,
+          )
+      gc.collect(); torch.cuda.empty_cache(); del model_a
+      return result
+    
+    def segments_to_srt(self, segments, output_path):
+      # print("segments_to_srt::", type(segments[0]), segments)
+      shutil.rmtree(output_path, ignore_errors=True)
+      def srt_time(str):
+        return re.sub(r"\.",",",re.sub(r"0{3}$","",str)) if re.search(r"\.\d{6}", str) else f'{str},000'
+      for index, segment in enumerate(segments):
+          startTime = srt_time(str(0)+str(timedelta(seconds=segment['start'])))
+          endTime = srt_time(str(0)+str(timedelta(seconds=segment['end'])))
+          text = segment['text']
+          segmentId = index+1
+          segment = f"{segmentId}\n{startTime} --> {endTime}\n{text[1:] if text and text[0] == ' ' else text}\n\n"
+          with open(output_path, 'a', encoding='utf-8') as srtFile:
+              srtFile.write(segment)
+
+    def modify_ass(self, segments, ass_path):
+      print("segments length:: ",len(segments), ass_path)
+      with open(ass_path, encoding='utf_8_sig') as f:
+        _ass = ass.parse(f)
+        print("ass length", len(_ass.events))
+        print("ass style", _ass.styles)
+        print("ass keys", list(_ass.sections.keys()))
+      for i in range(len(segments)):
+        _ass.events[i].text = " ".join([ f"{'{'+chr(92)+'k'+str(round(timedelta(seconds=(item['end']-item['start'])).total_seconds()*1000))+'}'+item['word']}" if 'start' in item else item['word'] for item in segments[i]["words"]])
+      with open(ass_path, "w", encoding='utf_8_sig') as f:
+        _ass.dump_file(f)
+                            
     def process_iteration(self):
         self.iteration = self.iteration + 1
         
@@ -930,8 +1006,7 @@ class UVR():
         progress = base * self.iteration - base
         progress += base * step
 
-        self.progress_bar_main_var = progress
-        
+        self.progress_bar_main_var = progress      
         # self.conversion_Button_Text_var.set(f'Process Progress: {int(progress)}%')
                       
     def process_start(self, inputPaths, uvr_method, choosen_model, progress=gr.Progress()):
@@ -1012,6 +1087,7 @@ class UVR():
                     is_verified_audio = False
                     continue
 
+                ## Start splitting vocals and instrument
                 for current_model_num, current_model in enumerate(model, start=1):
                     iteration += 1
 
@@ -1051,14 +1127,26 @@ class UVR():
                     if current_model.process_method == DEMUCS_ARCH_TYPE:
                         seperator = SeperateDemucs(current_model, process_data)
                     seperator.seperate()
-                    
-                ## merge video with converted audio
-                audio_converted_file = os.path.join(export_path, f'{audio_file_base}_({INST_STEM}).wav')
+                
+                ## Define path
+                inst_path = os.path.join(export_path, f'{audio_file_base}_({INST_STEM}).wav')
+                vocal_path = os.path.join(export_path, f'{audio_file_base}_({VOCAL_STEM}).wav')
+                srt_path = os.path.join(export_path, f'{audio_file_base}.srt')
+                ass_path = os.path.join(export_path, f'{audio_file_base}.ass')
+                
+                ## export srt,ass with timestamp
+                if os.path.exists(vocal_path):
+                  result_segments = self.speech_to_segments(vocal_path)
+                  self.segments_to_srt(result_segments['segments'], srt_path)
+                  os.system(f"ffmpeg -i '{srt_path}' '{ass_path}'")
+                  self.modify_ass(result_segments['segments'], ass_path)    
+                              
+                ## merge video with split audio
                 if not is_audio and os.path.exists(video_file):
                   media_output_file = os.path.join(export_path, os.path.basename(video_file))
-                  os.system(f"ffmpeg -i '{video_file}' -i '{audio_converted_file}' -c:v copy -c:a aac -map 0:v -map 1:a -shortest '{media_output_file}'")
+                  os.system(f"ffmpeg -i '{video_file}' -i '{inst_path}' -c:v copy -c:a aac -map 0:v -map 1:a -shortest '{media_output_file}'")
                 else:
-                  media_output_file = audio_converted_file
+                  media_output_file = inst_path
                   
                 ## Copy to custom output directory if specify 
                 COPY_OUTPUT_DIR = os.environ.get('COPY_OUTPUT_DIR', "")
