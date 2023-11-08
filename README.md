@@ -1,5 +1,4 @@
 # Ultimate Vocal Remover GUI v5.5.1
-
 <img src="https://raw.githubusercontent.com/Anjok07/ultimatevocalremovergui/master/gui_data/img/UVR_5_5_1.png?raw=true" />
 
 [![Release](https://img.shields.io/github/release/anjok07/ultimatevocalremovergui.svg)](https://github.com/anjok07/ultimatevocalremovergui/releases/latest)
@@ -31,10 +30,10 @@ These bundles contain the UVR interface, Python, PyTorch, and other dependencies
   - You must install UVR to the main C:\ drive. Installing UVR to a secondary drive will cause instability.
 
 - Download the UVR installer for Windows via the link below:
-  - [Main Download Link](https://github.com/Anjok07/ultimatevocalremovergui/releases/download/v5.5.0/UVR_v5.5.1_setup.exe)
-  - [Main Download Link mirror](https://www.mediafire.com/file_premium/j8hkuvbic6nqy7i/UVR_v5.5.1_setup.exe/file)
+    - [Main Download Link](https://github.com/Anjok07/ultimatevocalremovergui/releases/download/v5.5.0/UVR_v5.5.1_setup.exe)
+    - [Main Download Link mirror](https://www.mediafire.com/file_premium/j8hkuvbic6nqy7i/UVR_v5.5.1_setup.exe/file)
 - Update Package instructions for those who have UVR already installed:
-  - If you already have UVR installed you can install this package over it or download it straight from the application.
+    - If you already have UVR installed you can install this package over it or download it straight from the application.
 
 <details id="WindowsManual">
   <summary>Windows Manual Installation</summary>
@@ -76,22 +75,20 @@ In order to use the Time Stretch or Change Pitch tool, you'll need Rubber Band.
 </details>
 
 ### MacOS Installation
-
 - Please Note:
-  - This bundle is intended for those running macOS Catalina and above.
-  - Application functionality for systems running macOS Mojave or lower is not guaranteed.
-  - Application functionality for older or budget Mac systems is not guaranteed.
-  - Once everything is installed, the application may take up to 5-10 minutes to start for the first time (depending on your Macbook).
+    - This bundle is intended for those running macOS Catalina and above.
+    - Application functionality for systems running macOS Mojave or lower is not guaranteed.
+    - Application functionality for older or budget Mac systems is not guaranteed.
+    - Once everything is installed, the application may take up to 5-10 minutes to start for the first time (depending on your Macbook).
+    
 - Download the UVR dmg for MacOS via one of the links below:
+    - Mac M1 (arm64) users:
+       - [Main Download Link](https://github.com/Anjok07/ultimatevocalremovergui/releases/download/v5.5.0/Ultimate_Vocal_Remover_v5_5_MacOS_arm64.dmg)
+       - [Main Download Link mirror](https://www.mediafire.com/file_premium/o0tfneebhqw554e/Ultimate_Vocal_Remover_v5_5_MacOS_arm64.dmg/file)
 
-  - Mac M1 (arm64) users:
-
-    - [Main Download Link](https://github.com/Anjok07/ultimatevocalremovergui/releases/download/v5.5.0/Ultimate_Vocal_Remover_v5_5_MacOS_arm64.dmg)
-    - [Main Download Link mirror](https://www.mediafire.com/file_premium/o0tfneebhqw554e/Ultimate_Vocal_Remover_v5_5_MacOS_arm64.dmg/file)
-
-  - Mac Intel (x86_64) users:
-    - [Main Download Link](https://github.com/Anjok07/ultimatevocalremovergui/releases/download/v5.5.0/Ultimate_Vocal_Remover_v5_5_MacOS_x86_64.dmg)
-    - [Main Download Link mirror](https://www.mediafire.com/file_premium/m19wucslk9uzpcc/Ultimate_Vocal_Remover_v5_5_MacOS_x86_64.dmg/file)
+    - Mac Intel (x86_64) users:
+       - [Main Download Link](https://github.com/Anjok07/ultimatevocalremovergui/releases/download/v5.5.0/Ultimate_Vocal_Remover_v5_5_MacOS_x86_64.dmg)
+       - [Main Download Link mirror](https://www.mediafire.com/file_premium/m19wucslk9uzpcc/Ultimate_Vocal_Remover_v5_5_MacOS_x86_64.dmg/file)
 
 <details id="CannotOpen">
   <summary>MacOS Users: Having Trouble Opening UVR?</summary>
@@ -154,40 +151,37 @@ This process has been tested on a MacBook Pro 2021 (using M1) and a MacBook Air 
 
 <br />
     
-**These install instructions are for Ubuntu 22.10.**
+**These install instructions are for Debian & Arch based Linux systems.**
 
 - Download and save this repository [here](https://github.com/Anjok07/ultimatevocalremovergui/archive/refs/heads/master.zip)
 - From the saved directory run the following commands in this order-
 
+**For Debian Based (Ubuntu, Mint, etc.):**
 ```
 sudo apt update && sudo apt upgrade
 sudo apt-get update
 sudo apt install ffmpeg
-conda create -n uvr python=3.10.12
-conda activate uvr
-pip install -r requirements.txt
-OR
-cat requirements.txt | xargs -n 1 pip install
+sudo apt install python3-pip
+sudo apt-get -y install python3-tk
+pip3 install -r requirements.txt
 ```
 
 </details>
 
 ### Other Application Notes
-
 - Nvidia RTX 1060 6GB is the minimum requirement for GPU conversions.
 - Nvidia GPUs with at least 8GBs of V-RAM are recommended.
 - AMD Radeon GPUs are not supported at this time.
-- This application is only compatible with 64-bit platforms.
+- This application is only compatible with 64-bit platforms. 
 - This application relies on the Rubber Band library for the Time-Stretch and Pitch-Shift options.
 - This application relies on FFmpeg to process non-wav audio files.
 - The application will automatically remember your settings when closed.
-- Conversion times will significantly depend on your hardware.
-- These models are computationally intensive.
+- Conversion times will significantly depend on your hardware. 
+- These models are computationally intensive. 
 
 ## Change Log
 
 ### Most Recent Changes:
-
 - Fixed Download Center model list issue.
 - Fixed audio clip in ensemble mode.
 - Fixed output model name issue in ensemble mode.
@@ -209,7 +203,6 @@ cat requirements.txt | xargs -n 1 pip install
 - Various design changes.
 
 ### Performance:
-
 - Model load times are faster.
 - Importing/exporting audio files is faster.
 
@@ -221,18 +214,18 @@ cat requirements.txt | xargs -n 1 pip install
 - Secondary Model Mode - This option is an expanded version of the "Demucs Model" option only available to MDX-Net. Except now, this option is available in all three AI Networks and for any stem. Any model can now be Secondary, and the user can choose the amount of influence it has on the final result.
 - Robust caching for ensemble mode, allowing for much faster processing times.
 - Clicking the "Input" field will pop up a new window that allows the user to go through all of the selected audio inputs. Within this menu, users can:
-  - Remove inputs.
-  - Verify inputs.
-  - Create samples of selected inputs.
+    - Remove inputs.
+    - Verify inputs.
+    - Create samples of selected inputs.
 - "Sample Mode" option - Allows the user to process only part of a track to sample settings or a model without running a complete conversion.
-  - The number in the parentheses is the current number of seconds the generated sample will be.
-  - You can choose the number of seconds to extract from the track in the "Additional Settings" menu.
+    - The number in the parentheses is the current number of seconds the generated sample will be.
+    - You can choose the number of seconds to extract from the track in the "Additional Settings" menu.
 
 ### VR Architecture:
 
 - Ability to toggle "High-End Processing."
 - Support for the latest VR architecture
-  - Crop Size and Batch Size are specifically for models using the latest architecture only.
+    - Crop Size and Batch Size are specifically for models using the latest architecture only.
 
 ### MDX-NET:
 
@@ -247,22 +240,27 @@ cat requirements.txt | xargs -n 1 pip install
 - A "Pre-process" model that allows the user to run an inference through a robust vocal or instrumental model and separate the remaining stems from its generated instrumental mix. This option can significantly reduce vocal bleed in other Demucs-generated non-vocal stems.
   - The Pre-process model is intended for Demucs separations for all stems except vocals and instrumentals.
 
-### Ensemble Mode:
+### Ensemble Mode: 
 
 - Ensemble Mode has been extended to include the following:
-  - "Averaging" is a new algorithm that averages the final results.
-  - Unlimited models in the ensemble.
-  - Ability to save different ensembles.
-  - Ability to ensemble outputs for all individual stem types.
-  - Ability to choose unique ensemble algorithms.
-  - Ability to ensemble all 4 Demucs stems at once.
+    - "Averaging" is a new algorithm that averages the final results.
+    - Unlimited models in the ensemble.
+    - Ability to save different ensembles.
+    - Ability to ensemble outputs for all individual stem types.
+    - Ability to choose unique ensemble algorithms.
+    - Ability to ensemble all 4 Demucs stems at once.
 
 ## Troubleshooting
 
 ### Common Issues
 
 - If FFmpeg is not installed, the application will throw an error if the user attempts to convert a non-WAV file.
-- Memory allocation errors can usually be resolved by lowering the "Chunk Size".
+- Memory allocation errors can usually be resolved by lowering the "Segment" or "Window" sizes.
+
+#### MacOS Sonoma Left-click Bug
+There's a known issue on MacOS Sonoma where left-clicks aren't registering correctly within the app. This was impacting all applications built with Tkinter on Sonoma and has since been resolved. Please download the latest version via the following link if you are still experiencing issues - [link](https://github.com/Anjok07/ultimatevocalremovergui/releases/tag/v5.6)
+
+This issue was being tracked [here](https://github.com/Anjok07/ultimatevocalremovergui/issues/840).
 
 ### Issue Reporting
 
@@ -277,7 +275,7 @@ The **Ultimate Vocal Remover GUI** code is [MIT-licensed](LICENSE).
 - **Please Note:** For all third-party application developers who wish to use our models, please honor the MIT license by providing credit to UVR and its developers.
 
 ## Credits
-
+- [ZFTurbo](https://github.com/ZFTurbo) - Created & trained the weights for the new MDX23C models. 
 - [DilanBoskan](https://github.com/DilanBoskan) - Your contributions at the start of this project were essential to the success of UVR. Thank you!
 - [Bas Curtiz](https://www.youtube.com/user/bascurtiz) - Designed the official UVR logo, icon, banner, and splash screen.
 - [tsurumeso](https://github.com/tsurumeso) - Developed the original VR Architecture code.
