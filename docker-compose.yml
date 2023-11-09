@@ -24,4 +24,6 @@ services:
     #   AUTH_USER: ""
     #   AUTH_PASS: ""
     volumes:
+      - /mnt/backup/AI/ultimatevocalremovergui/fonts:/usr/share/fonts
+      - /mnt/backup/AI/ultimatevocalremovergui/cache:/root/.cache
       - /mnt/backup/AI/ultimatevocalremovergui/models:/app/models

@@ -6,7 +6,9 @@ RUN apt -y install -qq aria2 ffmpeg wget curl git
 
 WORKDIR /app
 
-RUN pip install scikit-learn
+RUN pip install -U setuptools scikit-learn
+
+ENV SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL=True
 
 COPY requirements.txt ./
 

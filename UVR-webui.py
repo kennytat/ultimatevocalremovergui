@@ -1397,10 +1397,10 @@ class UVR():
                   media_output_file = os.path.join(export_path, os.path.basename(video_file))
                   ffmpeg_command = [
                       "ffmpeg", "-i", video_file, "-i", inst_path,
-                      "-c:v", "libx264", "-c:a", "aac", "-map", "0:v", "-map", "1:a", "-shortest", media_output_file
+                      "-c:v", "copy", "-c:a", "aac", "-map", "0:v", "-map", "1:a", "-shortest", media_output_file
                   ]
                   if stt and stt_burn and os.path.exists(ass_path):
-                    ffmpeg_command[5:5] = ["-vf", f"ass={ass_path}"]
+                    ffmpeg_command[5:5] = ["-vf", f"ass='{ass_path}'"]
                   print("merging video::")
                   subprocess.run(ffmpeg_command)
                 else:
@@ -1603,7 +1603,7 @@ class UVR():
           inbrowser=True,
           show_error=True,
           server_name="0.0.0.0",
-          server_port=6871,
+          server_port=6870,
           enable_queue=True,
           # quiet=True, 
           share=False   
