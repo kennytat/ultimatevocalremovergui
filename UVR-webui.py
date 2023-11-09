@@ -168,6 +168,35 @@ if not os.path.isdir(ENSEMBLE_TEMP_PATH):
     
 if not os.path.isdir(SAMPLE_CLIP_PATH):
     os.mkdir(SAMPLE_CLIP_PATH)
+    
+LANGUAGES = {
+    'Automatic detection': None,
+    'Arabic (ar)': 'ar',
+    'Chinese (zh)': 'zh',
+    'Czech (cs)': 'cs',
+    'Danish (da)': 'da',
+    'Dutch (nl)': 'nl',
+    'English (en)': 'en',
+    'Finnish (fi)': 'fi',
+    'French (fr)': 'fr',
+    'German (de)': 'de',
+    'Greek (el)': 'el',
+    'Hebrew (he)': 'he',
+    'Hungarian (hu)': 'hu',
+    'Italian (it)': 'it',
+    'Japanese (ja)': 'ja',
+    'Korean (ko)': 'ko',
+    'Persian (fa)': 'fa',
+    'Polish (pl)': 'pl',
+    'Portuguese (pt)': 'pt',
+    'Russian (ru)': 'ru',
+    'Spanish (es)': 'es',
+    'Turkish (tr)': 'tr',
+    'Ukrainian (uk)': 'uk',
+    'Urdu (ur)': 'ur',
+    'Vietnamese (vi)': 'vi',
+    'Hindi (hi)': 'hi',
+}
 
 model_hash_table = {}
 data = load_data()
@@ -1169,7 +1198,7 @@ class UVR():
         else:
             return is_good, error_data
 
-    def speech_to_segments(self, audio_wav, WHISPER_MODEL_SIZE=whisper_model_default, language=None, batch_size=8):
+    def speech_to_segments(self, audio_wav, language=None, WHISPER_MODEL_SIZE=whisper_model_default, batch_size=8):
       print("Start speech_to_segments::")
       device = "cuda" if torch.cuda.is_available() else "cpu"
       model = whisperx.load_model(
@@ -1259,7 +1288,7 @@ class UVR():
                 
         return None
                            
-    def process_start(self, inputPaths, stt, stt_burn, uvr_method, choosen_model, progress=gr.Progress()):
+    def process_start(self, inputPaths, stt, stt_language, stt_burn, uvr_method, choosen_model, progress=gr.Progress()):
         """Start the conversion for all the given mp3 and wav files"""
         print("process_start::")
         final_output = []
@@ -1384,10 +1413,15 @@ class UVR():
                 vocal_path = os.path.join(export_path, f'{audio_file_base}_({VOCAL_STEM}).wav')
                 srt_path = os.path.join(export_path, f'{audio_file_base}.srt')
                 ass_path = os.path.join(export_path, f'{audio_file_base}.ass')
+                json_path = os.path.join(export_path, f'{audio_file_base}.json')
                 
                 ## export srt,ass with timestamp
                 if stt and os.path.exists(vocal_path):
-                  result_segments = self.speech_to_segments(vocal_path)
+                  stt_language = LANGUAGES[stt_language]
+                  result_segments = self.speech_to_segments(vocal_path, stt_language)
+                  print("dumping speech_to_segments::")
+                  with open(json_path, 'a', encoding='utf-8') as jsonFile:
+                    json.dump(result_segments['segments'], jsonFile, indent=4)
                   self.segments_to_srt(result_segments['segments'], srt_path)
                   subprocess.run(['ffmpeg', '-i', srt_path, ass_path])
                   self.modify_ass(result_segments['segments'], ass_path)    
@@ -1397,10 +1431,10 @@ class UVR():
                   media_output_file = os.path.join(export_path, os.path.basename(video_file))
                   ffmpeg_command = [
                       "ffmpeg", "-i", video_file, "-i", inst_path,
-                      "-c:v", "copy", "-c:a", "aac", "-map", "0:v", "-map", "1:a", "-shortest", media_output_file
+                      "-c:v", "libx264", "-c:a", "aac", "-map", "0:v", "-map", "1:a", "-shortest", media_output_file
                   ]
                   if stt and stt_burn and os.path.exists(ass_path):
-                    ffmpeg_command[5:5] = ["-vf", f"ass='{ass_path}'"]
+                    ffmpeg_command[5:5] = ["-vf", f"ass={ass_path}"]
                   print("merging video::")
                   subprocess.run(ffmpeg_command)
                 else:
@@ -1482,7 +1516,7 @@ class UVR():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl_download:
             ydl_download.download([url])
 
-    def preprocess(self, media_inputs, link_inputs, stt, stt_burn, uvr_method, uvr_model, progress=gr.Progress()):
+    def preprocess(self, media_inputs, link_inputs, stt, stt_language, stt_burn, uvr_method, uvr_model, progress=gr.Progress()):
       progress(0.05, desc="Processing media...")
       media_inputs = media_inputs if media_inputs is not None else []
       media_inputs = media_inputs if isinstance(media_inputs, list) else [media_inputs]
@@ -1502,7 +1536,7 @@ class UVR():
             media_inputs.append(download_path) 
       print(media_inputs, link_inputs, uvr_method, uvr_model)
       if media_inputs is not None and len(media_inputs) > 0 and media_inputs[0] != '':
-        output = root.process_start(media_inputs, stt, stt_burn, uvr_method, uvr_model)
+        output = root.process_start(media_inputs, stt, stt_language, stt_burn, uvr_method, uvr_model)
         return output
       else:
         raise gr.Error("Input not valid!!")
@@ -1529,11 +1563,12 @@ class UVR():
                         media_input = gr.File(label="VIDEO|AUDIO", interactive=True, file_count='multiple', file_types=['audio','video'])
                         link_input = gr.Textbox(label="Youtube Link",info="Example: https://www.youtube.com/watch?v=-biOGdYiF-I,https://www.youtube.com/watch?v=-biOGdYiF-I", placeholder="URL goes here, seperate by comma...")        
                         with gr.Row():
-                          stt = gr.Checkbox(label="Enable", container=False, value=False, interative=True, info='Export subtitle with timestamp')
-                          stt_burn = gr.Checkbox(label="Enable", container=False, value=False, visible=False, interative=True, info='Burn subtitle into video')
+                          stt = gr.Checkbox(label="Enable",  value=False, interative=True, info='Export subtitle with timestamp')
+                          stt_language = gr.Dropdown(['Automatic detection', 'Arabic (ar)', 'Chinese (zh)', 'Czech (cs)', 'Danish (da)', 'Dutch (nl)', 'English (en)', 'Finnish (fi)', 'French (fr)', 'German (de)', 'Greek (el)', 'Hebrew (he)', 'Hindi (hi)', 'Hungarian (hu)', 'Italian (it)', 'Japanese (ja)', 'Korean (ko)', 'Persian (fa)', 'Polish (pl)', 'Portuguese (pt)', 'Russian (ru)', 'Spanish (es)', 'Turkish (tr)', 'Ukrainian (uk)', 'Urdu (ur)', 'Vietnamese (vi)'], label='Target language', value='Automatic detection', visible=False)
+                          stt_burn = gr.Checkbox(label="Enable",  value=False, visible=False, interative=True, info='Burn subtitle into video')
                           def update_visible(stt_check):
-                            return gr.update(value=False if not stt_check else None, visible=stt_check)
-                          stt.change(update_visible, stt, [stt_burn])
+                            return  gr.update(visible=stt_check), gr.update(value=False if not stt_check else None, visible=stt_check)
+                          stt.change(update_visible, stt, [stt_language, stt_burn])
                         gr.ClearButton(components=[media_input,link_input], size='sm')
                         with gr.Row():
                           uvr_type_option = [str(MDX_ARCH_TYPE),str(DEMUCS_ARCH_TYPE),str(VR_ARCH_TYPE)]
@@ -1563,31 +1598,11 @@ class UVR():
                             media_button = gr.Button("CONVERT", )
                         with gr.Row():
                             media_output = gr.Files(label="DOWNLOAD CONVERTED VIDEO")
-                        # gr.Examples(
-                        #     examples=[
-                        #         [
-                        #             "",
-                        #             "https://www.youtube.com/watch?v=-biOGdYiF-I",
-                        #             "Demucs",
-                        #             "v3 | UVR_Model_1",
-                        #         ],
-                        #     ],
-                        #     fn=self.preprocess,
-                        #     inputs=[
-                        #       media_input,
-                        #       link_input,
-                        #       uvr_type,
-                        #       uvr_model
-                        #     ],
-                        #     outputs=[media_output],
-                        #     cache_examples=True,
-                        # )
-
-            # run
             media_button.click(self.preprocess, inputs=[
                 media_input,
                 link_input,
                 stt,
+                stt_language,
                 stt_burn,
                 uvr_type,
                 uvr_model

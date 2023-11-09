@@ -18,6 +18,8 @@ RUN rm -rf /root/.cache/pip && rm -rf /var/cache/apt/*
 
 COPY . .
 
+RUN sed -i "s/ass={ass_path}/ass='{ass_path}'/g" UVR-webui.py
+
 EXPOSE 6870
 
 CMD python UVR-webui.py
