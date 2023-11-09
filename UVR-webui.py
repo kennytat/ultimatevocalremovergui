@@ -14,6 +14,7 @@ import yt_dlp
 import ffmpeg
 import gc
 import re
+import subprocess
 import ass
 # import soundfile as sf
 import time
@@ -1220,10 +1221,11 @@ class UVR():
         print("ass style", _ass.styles)
         print("ass keys", list(_ass.sections.keys()))
       for i in range(len(segments)):
-        _ass.events[i].text = " ".join([ f"{'{'+chr(92)+'k'+str(round(timedelta(seconds=(item['end']-item['start'])).total_seconds()*1000))+'}'+item['word']}" if 'start' in item else item['word'] for item in segments[i]["words"]])
+        _ass.events[i].text = " ".join([ f"{'{'+chr(92)+'K'+str(round(timedelta(seconds=(item['end']-item['start'])).total_seconds()*100))+'}'+item['word']}" if 'start' in item else item['word'] for item in segments[i]["words"]])
+        _ass.events[i].text = f"{'{'+chr(92)+'c&HB52914&'+chr(92)+'1a&H00&'+chr(92)+'3c&HFFFFFF&'+'}'}{_ass.events[i].text}"
       with open(ass_path, "w", encoding='utf_8_sig') as f:
         _ass.dump_file(f)
-                            
+                           
     def process_iteration(self):
         self.iteration = self.iteration + 1
         
@@ -1257,9 +1259,8 @@ class UVR():
                 
         return None
                            
-    def process_start(self, inputPaths, uvr_method, choosen_model, progress=gr.Progress()):
+    def process_start(self, inputPaths, stt, stt_burn, uvr_method, choosen_model, progress=gr.Progress()):
         """Start the conversion for all the given mp3 and wav files"""
-        
         print("process_start::")
         final_output = []
         self.chosen_process_method_var = uvr_method
@@ -1290,6 +1291,7 @@ class UVR():
             true_model_pre_proc_model_count = sum(2 if m.pre_proc_model_activated else 0 for m in model)
             true_model_count = sum(2 if m.is_secondary_model_activated else 1 for m in model) + true_model_4_stem_count + true_model_pre_proc_model_count
 
+            progress(0.15, desc=f"Splitting media... 0/{len(inputPaths)}")
             for file_num, media_file in enumerate(inputPaths, start=1):
                 export_path = os.path.join(temp_dir, new_dir_now())
                 Path(export_path).mkdir(parents=True, exist_ok=True)
@@ -1306,7 +1308,8 @@ class UVR():
                       print('process media...')
                       if os.path.exists(video_file):
                           time.sleep(1)
-                          os.system(f"ffmpeg -y -i '{video_file}' -vn -acodec pcm_s16le -ar 44100 -ac 2 '{audio_file}'")
+                          # os.system(f"ffmpeg -y -i '{video_file}' -vn -acodec pcm_s16le -ar 44100 -ac 2 '{audio_file}'")
+                          subprocess.run(['ffmpeg', '-y', '-i', video_file, '-vn', '-acodec', 'pcm_s16le', '-ar', '44100', '-ac', '2', audio_file])
                           time.sleep(1)
                           break
                       if i == 119:
@@ -1367,7 +1370,7 @@ class UVR():
                                     'list_all_models': self.all_models,
                                     'is_ensemble_master': is_ensemble,
                                     'is_4_stem_ensemble': True if self.ensemble_main_stem_var == FOUR_STEM_ENSEMBLE and is_ensemble else False}
-                    print("start seperate voices...")
+                    print("start seperating voices...")
                     if current_model.process_method == VR_ARCH_TYPE:
                         seperator = SeperateVR(current_model, process_data)
                     if current_model.process_method == MDX_ARCH_TYPE:
@@ -1383,27 +1386,36 @@ class UVR():
                 ass_path = os.path.join(export_path, f'{audio_file_base}.ass')
                 
                 ## export srt,ass with timestamp
-                if os.path.exists(vocal_path):
+                if stt and os.path.exists(vocal_path):
                   result_segments = self.speech_to_segments(vocal_path)
                   self.segments_to_srt(result_segments['segments'], srt_path)
-                  os.system(f"ffmpeg -i '{srt_path}' '{ass_path}'")
+                  subprocess.run(['ffmpeg', '-i', srt_path, ass_path])
                   self.modify_ass(result_segments['segments'], ass_path)    
                               
                 ## merge video with split audio
                 if not is_audio and os.path.exists(video_file):
                   media_output_file = os.path.join(export_path, os.path.basename(video_file))
-                  os.system(f"ffmpeg -i '{video_file}' -i '{inst_path}' -c:v copy -c:a aac -map 0:v -map 1:a -shortest '{media_output_file}'")
+                  ffmpeg_command = [
+                      "ffmpeg", "-i", video_file, "-i", inst_path,
+                      "-c:v", "libx264", "-c:a", "aac", "-map", "0:v", "-map", "1:a", "-shortest", media_output_file
+                  ]
+                  if stt and stt_burn and os.path.exists(ass_path):
+                    ffmpeg_command[5:5] = ["-vf", f"ass={ass_path}"]
+                  print("merging video::")
+                  subprocess.run(ffmpeg_command)
                 else:
                   media_output_file = inst_path
                   
                 ## Copy to custom output directory if specify 
                 COPY_OUTPUT_DIR = os.environ.get('COPY_OUTPUT_DIR', "")
-                if COPY_OUTPUT_DIR != "": 
+                if COPY_OUTPUT_DIR != "":
+                  print("copy video to COPY_OUTPUT_DIR::")
                   shutil.copy(media_output_file, os.path.join(COPY_OUTPUT_DIR, os.path.basename(media_output_file)))
                 # Archive final output folder when done
                 archive_path = os.path.join(Path(temp_dir).absolute(), os.path.splitext(os.path.basename(audio_file))[0])
                 shutil.make_archive(archive_path, 'zip', export_path)   
                 final_output.append(f"{archive_path}.zip")
+                progress(file_num/len(inputPaths), desc=f"Splitting media... {file_num}/{len(inputPaths)}")
                 
                 # Remove input file when done
                 if is_model_sample_mode:
@@ -1470,13 +1482,14 @@ class UVR():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl_download:
             ydl_download.download([url])
 
-    def preprocess(self, media_inputs, link_inputs, uvr_method, uvr_model, progress=gr.Progress()):
+    def preprocess(self, media_inputs, link_inputs, stt, stt_burn, uvr_method, uvr_model, progress=gr.Progress()):
+      progress(0.05, desc="Processing media...")
       media_inputs = media_inputs if media_inputs is not None else []
       media_inputs = media_inputs if isinstance(media_inputs, list) else [media_inputs]
       media_inputs = [media_input if isinstance(media_input, str) else media_input.name for media_input in media_inputs]
       youtube_temp_dir = os.path.join(temp_dir, 'youtube')
-      Path(youtube_temp_dir).mkdir(parents=True, exist_ok=True)
-      os.system(f"rm -rf {youtube_temp_dir}/*")
+      shutil.rmtree(youtube_temp_dir, ignore_errors=True)
+      Path(youtube_temp_dir).mkdir(parents=True, exist_ok=True)   
       link_inputs = link_inputs.split(',')
       print("link_inputs::", link_inputs)
       if link_inputs is not None and len(link_inputs) > 0 and link_inputs[0] != '':
@@ -1489,7 +1502,7 @@ class UVR():
             media_inputs.append(download_path) 
       print(media_inputs, link_inputs, uvr_method, uvr_model)
       if media_inputs is not None and len(media_inputs) > 0 and media_inputs[0] != '':
-        output = root.process_start(media_inputs, uvr_method, uvr_model)
+        output = root.process_start(media_inputs, stt, stt_burn, uvr_method, uvr_model)
         return output
       else:
         raise gr.Error("Input not valid!!")
@@ -1515,6 +1528,12 @@ class UVR():
                         #media_input = gr.UploadButton("Click to Upload a video", file_types=["video"], file_count="single") #gr.Video() # height=300,width=300
                         media_input = gr.File(label="VIDEO|AUDIO", interactive=True, file_count='multiple', file_types=['audio','video'])
                         link_input = gr.Textbox(label="Youtube Link",info="Example: https://www.youtube.com/watch?v=-biOGdYiF-I,https://www.youtube.com/watch?v=-biOGdYiF-I", placeholder="URL goes here, seperate by comma...")        
+                        with gr.Row():
+                          stt = gr.Checkbox(label="Enable", container=False, value=False, interative=True, info='Export subtitle with timestamp')
+                          stt_burn = gr.Checkbox(label="Enable", container=False, value=False, visible=False, interative=True, info='Burn subtitle into video')
+                          def update_visible(stt_check):
+                            return gr.update(value=False if not stt_check else None, visible=stt_check)
+                          stt.change(update_visible, stt, [stt_burn])
                         gr.ClearButton(components=[media_input,link_input], size='sm')
                         with gr.Row():
                           uvr_type_option = [str(MDX_ARCH_TYPE),str(DEMUCS_ARCH_TYPE),str(VR_ARCH_TYPE)]
@@ -1568,6 +1587,8 @@ class UVR():
             media_button.click(self.preprocess, inputs=[
                 media_input,
                 link_input,
+                stt,
+                stt_burn,
                 uvr_type,
                 uvr_model
                 ], outputs=media_output)
@@ -1589,7 +1610,7 @@ class UVR():
           )
 
 if __name__ == "__main__":
+  shutil.rmtree(temp_dir,ignore_errors=True)
   Path(temp_dir).mkdir(parents=True, exist_ok=True)
-  os.system(f'rm -rf {temp_dir}/*')
   root = UVR()
   root.start_webui()
