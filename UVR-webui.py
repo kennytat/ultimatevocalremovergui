@@ -1198,7 +1198,7 @@ class UVR():
         else:
             return is_good, error_data
 
-    def speech_to_segments(self, audio_wav, language=None, WHISPER_MODEL_SIZE=whisper_model_default, batch_size=8):
+    def speech_to_segments(self, audio_wav, language=None, WHISPER_MODEL_SIZE=whisper_model_default, batch_size=8, chunk_size=10):
       print("Start speech_to_segments::")
       device = "cuda" if torch.cuda.is_available() else "cpu"
       model = whisperx.load_model(
@@ -1209,7 +1209,7 @@ class UVR():
           )
       audio = whisperx.load_audio(audio_wav)
       print("Transcribing::")
-      result = model.transcribe(audio, batch_size=batch_size)
+      result = model.transcribe(audio, batch_size=batch_size, chunk_size=chunk_size)
       gc.collect(); torch.cuda.empty_cache(); del model
       print("Aligning::")
       model_a, metadata = whisperx.load_align_model(
