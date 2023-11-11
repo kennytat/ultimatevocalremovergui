@@ -1249,9 +1249,40 @@ class UVR():
         print("ass length", len(_ass.events))
         print("ass style", _ass.styles)
         print("ass keys", list(_ass.sections.keys()))
+      subtitle_style = f"{'{'+chr(92)+'b1&'+chr(92)+'c&HA95C21&'+chr(92)+'2c&HC8C8C8&'+chr(92)+'3c&HFFFFFF&'+chr(92)+'4c&H000000'+'}'}"
+      even_pos = f"{'{'+chr(92)+'an1&'+chr(92)+'pos(15,255)'+'}'}"
+      odd_pos = f"{'{'+chr(92)+'an3&'+chr(92)+'pos(370,275)'+'}'}"
+      ## Calculate time for each word
       for i in range(len(segments)):
-        _ass.events[i].text = " ".join([ f"{'{'+chr(92)+'K'+str(round(timedelta(seconds=(item['end']-item['start'])).total_seconds()*100))+'}'+item['word']}" if 'start' in item else item['word'] for item in segments[i]["words"]])
-        _ass.events[i].text = f"{'{'+chr(92)+'c&HB52914&'+chr(92)+'1a&H00&'+chr(92)+'3c&HFFFFFF&'+'}'}{_ass.events[i].text}"
+        for index, item in enumerate(segments[i]["words"]):
+          if 'start' in item:
+            if index < len(segments[i]["words"]) - 1 and 'start' in segments[i]['words'][index+1]:
+              item['word'] = f"{'{'+chr(92)+'K'+str(round(timedelta(seconds=(segments[i]['words'][index+1]['start']-item['start'])).total_seconds()*100))+'}'+item['word']}"
+            else:
+              item['word'] = f"{'{'+chr(92)+'K'+str(round(timedelta(seconds=(item['end']-item['start'])).total_seconds()*100))+'}'+item['word']}"
+          else:
+            item['word'] = item['word']
+        # _ass.events[i].text = " ".join([ f"{'{'+chr(92)+'K'+str(round(timedelta(seconds=(item['end']-item['start'])).total_seconds()*100))+'}'+item['word']}" if 'start' in item else item['word'] for index, item in enumerate(segments[i]["words"])])
+        _ass.events[i].text = " ".join([ item['word'] for item in segments[i]['words']])
+        ## Add pre and post time to subtitles
+        if i == 0:
+          pre_time = 3 ## seconds
+          _ass.events[i].start = timedelta(seconds=(segments[i]["start"] - pre_time)) ## Add 3 seconds to the beginning
+          _ass.events[i].text = f"{'{'+chr(92)+'K'+str(round(pre_time*100))+'}'+' ♪ ♪ ♪ '}{_ass.events[i].text}"
+        else:
+          pre_time = segments[i]["start"] - segments[i-1]["start"] ## seconds
+          _ass.events[i].start = timedelta(seconds=(segments[i]["start"] - pre_time)) ## Add 3 seconds to the beginning
+          _ass.events[i].text = f"{'{'+chr(92)+'K'+str(round(pre_time*100))+'}'}{_ass.events[i].text}"
+        if i == len(segments) - 1:
+          post_time = 3
+          _ass.events[i].end = timedelta(seconds=(segments[i]["end"] + post_time)) ## Add 3 seconds to the end
+        ## Add style to subtitles
+        _ass.events[i].text = f"{subtitle_style}{_ass.events[i].text}"
+        ## Add position to odd and even sub
+        if i % 2 == 0:
+          _ass.events[i].text = f"{even_pos}{_ass.events[i].text}"
+        else:
+          _ass.events[i].text = f"{odd_pos}{_ass.events[i].text}"
       with open(ass_path, "w", encoding='utf_8_sig') as f:
         _ass.dump_file(f)
                            
@@ -1288,7 +1319,7 @@ class UVR():
                 
         return None
                            
-    def process_start(self, inputPaths, stt, stt_language, stt_burn, uvr_method, choosen_model, progress=gr.Progress()):
+    def process_start(self, inputPaths, stt, stt_language, stt_burn, stt_batch_size,stt_chuck_size,uvr_method, choosen_model, progress=gr.Progress()):
         """Start the conversion for all the given mp3 and wav files"""
         print("process_start::")
         final_output = []
@@ -1418,7 +1449,7 @@ class UVR():
                 ## export srt,ass with timestamp
                 if stt and os.path.exists(vocal_path):
                   stt_language = LANGUAGES[stt_language]
-                  result_segments = self.speech_to_segments(vocal_path, stt_language)
+                  result_segments = self.speech_to_segments(audio_wav=vocal_path,language=stt_language,batch_size=stt_batch_size,chunk_size=stt_chuck_size)
                   print("dumping speech_to_segments::")
                   with open(json_path, 'a', encoding='utf-8') as jsonFile:
                     json.dump(result_segments['segments'], jsonFile, indent=4)
@@ -1434,7 +1465,7 @@ class UVR():
                       "-c:v", "libx264", "-c:a", "aac", "-map", "0:v", "-map", "1:a", "-shortest", media_output_file
                   ]
                   if stt and stt_burn and os.path.exists(ass_path):
-                    ffmpeg_command[5:5] = ["-vf", f"ass={ass_path}"]
+                    ffmpeg_command[5:5] = ["-vf", f"ass='{ass_path}'"]
                   print("merging video::")
                   subprocess.run(ffmpeg_command)
                 else:
@@ -1516,7 +1547,7 @@ class UVR():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl_download:
             ydl_download.download([url])
 
-    def preprocess(self, media_inputs, link_inputs, stt, stt_language, stt_burn, uvr_method, uvr_model, progress=gr.Progress()):
+    def preprocess(self, media_inputs, link_inputs, stt, stt_language, stt_burn,stt_batch_size,stt_chuck_size, uvr_method, uvr_model, progress=gr.Progress()):
       progress(0.05, desc="Processing media...")
       media_inputs = media_inputs if media_inputs is not None else []
       media_inputs = media_inputs if isinstance(media_inputs, list) else [media_inputs]
@@ -1536,7 +1567,7 @@ class UVR():
             media_inputs.append(download_path) 
       print(media_inputs, link_inputs, uvr_method, uvr_model)
       if media_inputs is not None and len(media_inputs) > 0 and media_inputs[0] != '':
-        output = root.process_start(media_inputs, stt, stt_language, stt_burn, uvr_method, uvr_model)
+        output = root.process_start(media_inputs, stt, stt_language, stt_burn, stt_batch_size,stt_chuck_size, uvr_method, uvr_model)
         return output
       else:
         raise gr.Error("Input not valid!!")
@@ -1564,11 +1595,15 @@ class UVR():
                         link_input = gr.Textbox(label="Youtube Link",info="Example: https://www.youtube.com/watch?v=-biOGdYiF-I,https://www.youtube.com/watch?v=-biOGdYiF-I", placeholder="URL goes here, seperate by comma...")        
                         with gr.Row():
                           stt = gr.Checkbox(label="Enable",  value=False, interative=True, info='Export subtitle with timestamp')
-                          stt_language = gr.Dropdown(['Automatic detection', 'Arabic (ar)', 'Chinese (zh)', 'Czech (cs)', 'Danish (da)', 'Dutch (nl)', 'English (en)', 'Finnish (fi)', 'French (fr)', 'German (de)', 'Greek (el)', 'Hebrew (he)', 'Hindi (hi)', 'Hungarian (hu)', 'Italian (it)', 'Japanese (ja)', 'Korean (ko)', 'Persian (fa)', 'Polish (pl)', 'Portuguese (pt)', 'Russian (ru)', 'Spanish (es)', 'Turkish (tr)', 'Ukrainian (uk)', 'Urdu (ur)', 'Vietnamese (vi)'], label='Target language', value='Automatic detection', visible=False)
-                          stt_burn = gr.Checkbox(label="Enable",  value=False, visible=False, interative=True, info='Burn subtitle into video')
+                        with gr.Column():
+                          with gr.Row(visible=False) as stt_row:
+                            stt_language = gr.Dropdown(['Automatic detection', 'Arabic (ar)', 'Chinese (zh)', 'Czech (cs)', 'Danish (da)', 'Dutch (nl)', 'English (en)', 'Finnish (fi)', 'French (fr)', 'German (de)', 'Greek (el)', 'Hebrew (he)', 'Hindi (hi)', 'Hungarian (hu)', 'Italian (it)', 'Japanese (ja)', 'Korean (ko)', 'Persian (fa)', 'Polish (pl)', 'Portuguese (pt)', 'Russian (ru)', 'Spanish (es)', 'Turkish (tr)', 'Ukrainian (uk)', 'Urdu (ur)', 'Vietnamese (vi)'], label='Target language', value='Automatic detection',scale=1)
+                            stt_burn = gr.Checkbox(label="Enable",  value=False, interative=True, info='Burn subtitle into video',scale=1)
+                            stt_batch_size =gr.Slider(minimum=2, maximum=24, value=8, label="Batch Size", step=1,scale=1)
+                            stt_chuck_size = gr.Slider(minimum=5, maximum=50, value=10, label="Chuck Size", step=1,scale=1)
                           def update_visible(stt_check):
-                            return  gr.update(visible=stt_check), gr.update(value=False if not stt_check else None, visible=stt_check)
-                          stt.change(update_visible, stt, [stt_language, stt_burn])
+                            return  gr.update(visible=stt_check)
+                          stt.change(update_visible, stt, [stt_row])
                         gr.ClearButton(components=[media_input,link_input], size='sm')
                         with gr.Row():
                           uvr_type_option = [str(MDX_ARCH_TYPE),str(DEMUCS_ARCH_TYPE),str(VR_ARCH_TYPE)]
@@ -1604,6 +1639,8 @@ class UVR():
                 stt,
                 stt_language,
                 stt_burn,
+                stt_batch_size,
+                stt_chuck_size,
                 uvr_type,
                 uvr_model
                 ], outputs=media_output)
