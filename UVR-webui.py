@@ -1460,9 +1460,15 @@ class UVR():
                 ## merge video with split audio
                 if not is_audio and os.path.exists(video_file):
                   media_output_file = os.path.join(export_path, os.path.basename(video_file))
+                  ## create video file with stereo removed vocals
+                  # ffmpeg_command = [
+                  #     "ffmpeg", "-i", video_file, "-i", inst_path,
+                  #     "-c:v", "libx264", "-c:a", "aac", "-map", "0:v", "-map", "1:a", "-shortest", media_output_file
+                  # ]
+                  ## create video file with dual mono of original audio and removed vocals
                   ffmpeg_command = [
                       "ffmpeg", "-i", video_file, "-i", inst_path,
-                      "-c:v", "libx264", "-c:a", "aac", "-map", "0:v", "-map", "1:a", "-shortest", media_output_file
+                      "-filter_complex", "'[0:a]pan=mono|c0=c0[a1];[1:a]pan=mono|c0=c1[a2]'", "-map", "0:v", "-map", "'[a1]'", "-map", "'[a2]'", "-c:v", "copy", "-c:a", "aac", "-strict", "experimental", media_output_file
                   ]
                   if stt and stt_burn and os.path.exists(ass_path):
                     ffmpeg_command[5:5] = ["-vf", f"ass='{ass_path}'"]
