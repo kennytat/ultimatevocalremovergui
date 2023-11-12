@@ -1319,7 +1319,7 @@ class UVR():
                 
         return None
                            
-    def process_start(self, inputPaths, stt, stt_language, stt_burn, stt_batch_size,stt_chuck_size,uvr_method, choosen_model, progress=gr.Progress()):
+    def process_start(self, inputPaths, stt, stt_mode, stt_language, stt_burn, stt_batch_size,stt_chuck_size,uvr_method, choosen_model, progress=gr.Progress()):
         """Start the conversion for all the given mp3 and wav files"""
         print("process_start::")
         final_output = []
@@ -1460,18 +1460,23 @@ class UVR():
                 ## merge video with split audio
                 if not is_audio and os.path.exists(video_file):
                   media_output_file = os.path.join(export_path, os.path.basename(video_file))
-                  ## create video file with stereo removed vocals
-                  # ffmpeg_command = [
-                  #     "ffmpeg", "-i", video_file, "-i", inst_path,
-                  #     "-c:v", "libx264", "-c:a", "aac", "-map", "0:v", "-map", "1:a", "-shortest", media_output_file
-                  # ]
-                  ## create video file with dual mono of original audio and removed vocals
-                  ffmpeg_command = [
-                      "ffmpeg", "-i", video_file, "-i", inst_path,
-                      "-filter_complex", "'[0:a]pan=mono|c0=c0[a1];[1:a]pan=mono|c0=c1[a2]'", "-map", "0:v", "-map", "'[a1]'", "-map", "'[a2]'", "-c:v", "copy", "-c:a", "aac", "-strict", "experimental", media_output_file
-                  ]
+                  if stt_mode == 'Karaoke':
+                    ## create video file with dual mono of original audio and removed vocals
+                    ffmpeg_command = [
+                        "ffmpeg", "-i", video_file, "-i", inst_path,
+                        "-filter_complex", "'[0:a]pan=mono|c0=c0[a1];[1:a]pan=mono|c0=c1[a2]'", "-map", "0:v", "-map", "'[a1]'", "-map", "'[a2]'", "-c:v", "libx264", "-c:a", "aac", "-strict", "experimental", media_output_file
+                    ]
+                  else:
+                    ## create video file with stereo removed vocals
+                    ffmpeg_command = [
+                        "ffmpeg", "-i", video_file, "-i", inst_path,
+                        "-c:v", "libx264", "-c:a", "aac", "-map", "0:v", "-map", "1:a", "-shortest", media_output_file
+                    ]
                   if stt and stt_burn and os.path.exists(ass_path):
-                    ffmpeg_command[5:5] = ["-vf", f"ass='{ass_path}'"]
+                    if stt_mode == 'Karaoke':
+                      ffmpeg_command[5:5] = ["-vf", f"ass='{ass_path}'"]
+                    else:
+                      ffmpeg_command[5:5] = ["-vf", f"subtitles='{srt_path}'"]
                   print("merging video::")
                   subprocess.run(ffmpeg_command)
                 else:
@@ -1553,7 +1558,7 @@ class UVR():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl_download:
             ydl_download.download([url])
 
-    def preprocess(self, media_inputs, link_inputs, stt, stt_language, stt_burn,stt_batch_size,stt_chuck_size, uvr_method, uvr_model, progress=gr.Progress()):
+    def preprocess(self, media_inputs, link_inputs, stt, stt_mode, stt_language, stt_burn,stt_batch_size,stt_chuck_size, uvr_method, uvr_model, progress=gr.Progress()):
       progress(0.05, desc="Processing media...")
       media_inputs = media_inputs if media_inputs is not None else []
       media_inputs = media_inputs if isinstance(media_inputs, list) else [media_inputs]
@@ -1573,7 +1578,7 @@ class UVR():
             media_inputs.append(download_path) 
       print(media_inputs, link_inputs, uvr_method, uvr_model)
       if media_inputs is not None and len(media_inputs) > 0 and media_inputs[0] != '':
-        output = root.process_start(media_inputs, stt, stt_language, stt_burn, stt_batch_size,stt_chuck_size, uvr_method, uvr_model)
+        output = root.process_start(media_inputs, stt, stt_mode, stt_language, stt_burn, stt_batch_size,stt_chuck_size, uvr_method, uvr_model)
         return output
       else:
         raise gr.Error("Input not valid!!")
@@ -1601,15 +1606,17 @@ class UVR():
                         link_input = gr.Textbox(label="Youtube Link",info="Example: https://www.youtube.com/watch?v=-biOGdYiF-I,https://www.youtube.com/watch?v=-biOGdYiF-I", placeholder="URL goes here, seperate by comma...")        
                         with gr.Row():
                           stt = gr.Checkbox(label="Enable",  value=False, interative=True, info='Export subtitle with timestamp')
-                        with gr.Column():
-                          with gr.Row(visible=False) as stt_row:
+                        with gr.Column(visible=False) as stt_col:
+                          with gr.Row():
+                            stt_mode = gr.Dropdown(['Normal', 'Karaoke'], label='STT Mode', value='Normal',scale=1)
                             stt_language = gr.Dropdown(['Automatic detection', 'Arabic (ar)', 'Chinese (zh)', 'Czech (cs)', 'Danish (da)', 'Dutch (nl)', 'English (en)', 'Finnish (fi)', 'French (fr)', 'German (de)', 'Greek (el)', 'Hebrew (he)', 'Hindi (hi)', 'Hungarian (hu)', 'Italian (it)', 'Japanese (ja)', 'Korean (ko)', 'Persian (fa)', 'Polish (pl)', 'Portuguese (pt)', 'Russian (ru)', 'Spanish (es)', 'Turkish (tr)', 'Ukrainian (uk)', 'Urdu (ur)', 'Vietnamese (vi)'], label='Target language', value='Automatic detection',scale=1)
                             stt_burn = gr.Checkbox(label="Enable",  value=False, interative=True, info='Burn subtitle into video',scale=1)
+                          with gr.Row():  
                             stt_batch_size =gr.Slider(minimum=2, maximum=24, value=8, label="Batch Size", step=1,scale=1)
                             stt_chuck_size = gr.Slider(minimum=5, maximum=50, value=10, label="Chuck Size", step=1,scale=1)
                           def update_visible(stt_check):
                             return  gr.update(visible=stt_check)
-                          stt.change(update_visible, stt, [stt_row])
+                          stt.change(update_visible, stt, [stt_col])
                         gr.ClearButton(components=[media_input,link_input], size='sm')
                         with gr.Row():
                           uvr_type_option = [str(MDX_ARCH_TYPE),str(DEMUCS_ARCH_TYPE),str(VR_ARCH_TYPE)]
@@ -1643,6 +1650,7 @@ class UVR():
                 media_input,
                 link_input,
                 stt,
+                stt_mode,
                 stt_language,
                 stt_burn,
                 stt_batch_size,
