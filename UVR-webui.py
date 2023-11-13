@@ -1249,8 +1249,9 @@ class UVR():
         print("ass length", len(_ass.events))
         print("ass style", _ass.styles)
         print("ass keys", list(_ass.sections.keys()))
-      subtitle_style = f"{'{'+chr(92)+'b1&'+chr(92)+'c&HA95C21&'+chr(92)+'2c&HC8C8C8&'+chr(92)+'3c&HFFFFFF&'+chr(92)+'4c&H000000'+'}'}"
-      even_pos = f"{'{'+chr(92)+'an1&'+chr(92)+'pos(15,255)'+'}'}"
+        
+      subtitle_style = f"{'{'+chr(92)+'fs25'+'}'+'{'+chr(92)+'b1&'+chr(92)+'c&HA95C21&'+chr(92)+'2c&HC8C8C8&'+chr(92)+'3c&HFFFFFF&'+chr(92)+'4c&H000000'+'}'}"
+      even_pos = f"{'{'+chr(92)+'an1&'+chr(92)+'pos(15,245)'+'}'}"
       odd_pos = f"{'{'+chr(92)+'an3&'+chr(92)+'pos(370,275)'+'}'}"
       ## Calculate time for each word
       for i in range(len(segments)):
@@ -1264,7 +1265,7 @@ class UVR():
             item['word'] = item['word']
         # _ass.events[i].text = " ".join([ f"{'{'+chr(92)+'K'+str(round(timedelta(seconds=(item['end']-item['start'])).total_seconds()*100))+'}'+item['word']}" if 'start' in item else item['word'] for index, item in enumerate(segments[i]["words"])])
         _ass.events[i].text = " ".join([ item['word'] for item in segments[i]['words']])
-        ## Add pre and post time to subtitles
+        ## Modify pre time of subtitle
         if i == 0:
           pre_time = 3 ## seconds
           _ass.events[i].start = timedelta(seconds=(segments[i]["start"] - pre_time)) ## Add 3 seconds to the beginning
@@ -1273,9 +1274,12 @@ class UVR():
           pre_time = segments[i]["start"] - segments[i-1]["start"] ## seconds
           _ass.events[i].start = timedelta(seconds=(segments[i]["start"] - pre_time)) ## Add 3 seconds to the beginning
           _ass.events[i].text = f"{'{'+chr(92)+'K'+str(round(pre_time*100))+'}'}{_ass.events[i].text}"
+        ## Modify post time of subtitle
         if i == len(segments) - 1:
           post_time = 3
           _ass.events[i].end = timedelta(seconds=(segments[i]["end"] + post_time)) ## Add 3 seconds to the end
+        else:
+          _ass.events[i].end = timedelta(seconds=(segments[i+1]["start"])) ## Add 3 seconds to the end
         ## Add style to subtitles
         _ass.events[i].text = f"{subtitle_style}{_ass.events[i].text}"
         ## Add position to odd and even sub
@@ -1460,24 +1464,24 @@ class UVR():
                 ## merge video with split audio
                 if not is_audio and os.path.exists(video_file):
                   media_output_file = os.path.join(export_path, os.path.basename(video_file))
-                  if stt_mode == 'Karaoke':
+                  if stt and stt_mode == 'Karaoke':
                     ## create video file with dual mono of original audio and removed vocals
                     ffmpeg_command = [
                         "ffmpeg", "-i", video_file, "-i", inst_path,
-                        "-filter_complex", "'[0:a]pan=mono|c0=c0[a1];[1:a]pan=mono|c0=c1[a2]'", "-map", "0:v", "-map", "'[a1]'", "-map", "'[a2]'", "-c:v", "libx264", "-c:a", "aac", "-strict", "experimental", media_output_file
+                        "-filter_complex", "[0:a]pan=mono|c0=c0[a1];[1:a]pan=mono|c0=c1[a2]", "-map", "0:v", "-map", "[a1]", "-map", "[a2]", "-c:v", "libx264", "-c:a", "aac", "-strict", "experimental", media_output_file
                     ]
                   else:
                     ## create video file with stereo removed vocals
                     ffmpeg_command = [
                         "ffmpeg", "-i", video_file, "-i", inst_path,
-                        "-c:v", "libx264", "-c:a", "aac", "-map", "0:v", "-map", "1:a", "-shortest", media_output_file
+                        "-c:v", "copy", "-c:a", "aac", "-map", "0:v", "-map", "1:a", "-shortest", media_output_file
                     ]
                   if stt and stt_burn and os.path.exists(ass_path):
                     if stt_mode == 'Karaoke':
                       ffmpeg_command[5:5] = ["-vf", f"ass='{ass_path}'"]
                     else:
                       ffmpeg_command[5:5] = ["-vf", f"subtitles='{srt_path}'"]
-                  print("merging video::")
+                  print("merging video::", ffmpeg_command)
                   subprocess.run(ffmpeg_command)
                 else:
                   media_output_file = inst_path
@@ -1591,7 +1595,8 @@ class UVR():
         """
         theme = gr.themes.Base.load(os.path.join('themes','taithrah-minimal@0.0.1.json')).set(
             background_fill_primary ="#171717",
-            panel_background_fill = "transparent"
+            panel_background_fill = "transparent",
+            body_text_color = "#afafaf"
         )
         with gr.Blocks(title="UVR",theme=theme) as demo:
             gr.Markdown(title)
@@ -1606,9 +1611,9 @@ class UVR():
                         link_input = gr.Textbox(label="Youtube Link",info="Example: https://www.youtube.com/watch?v=-biOGdYiF-I,https://www.youtube.com/watch?v=-biOGdYiF-I", placeholder="URL goes here, seperate by comma...")        
                         with gr.Row():
                           stt = gr.Checkbox(label="Enable",  value=False, interative=True, info='Export subtitle with timestamp')
-                        with gr.Column(visible=False) as stt_col:
+                        with gr.Accordion(label="Subtitle Option", visible=False) as stt_option:
                           with gr.Row():
-                            stt_mode = gr.Dropdown(['Normal', 'Karaoke'], label='STT Mode', value='Normal',scale=1)
+                            stt_mode = gr.Dropdown(['Normal', 'Karaoke'], label='Subtitle Mode', value='Normal',scale=1)
                             stt_language = gr.Dropdown(['Automatic detection', 'Arabic (ar)', 'Chinese (zh)', 'Czech (cs)', 'Danish (da)', 'Dutch (nl)', 'English (en)', 'Finnish (fi)', 'French (fr)', 'German (de)', 'Greek (el)', 'Hebrew (he)', 'Hindi (hi)', 'Hungarian (hu)', 'Italian (it)', 'Japanese (ja)', 'Korean (ko)', 'Persian (fa)', 'Polish (pl)', 'Portuguese (pt)', 'Russian (ru)', 'Spanish (es)', 'Turkish (tr)', 'Ukrainian (uk)', 'Urdu (ur)', 'Vietnamese (vi)'], label='Target language', value='Automatic detection',scale=1)
                             stt_burn = gr.Checkbox(label="Enable",  value=False, interative=True, info='Burn subtitle into video',scale=1)
                           with gr.Row():  
@@ -1616,7 +1621,7 @@ class UVR():
                             stt_chuck_size = gr.Slider(minimum=5, maximum=50, value=10, label="Chuck Size", step=1,scale=1)
                           def update_visible(stt_check):
                             return  gr.update(visible=stt_check)
-                          stt.change(update_visible, stt, [stt_col])
+                          stt.change(update_visible, stt, [stt_option])
                         gr.ClearButton(components=[media_input,link_input], size='sm')
                         with gr.Row():
                           uvr_type_option = [str(MDX_ARCH_TYPE),str(DEMUCS_ARCH_TYPE),str(VR_ARCH_TYPE)]
