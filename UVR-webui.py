@@ -1242,7 +1242,7 @@ class UVR():
           with open(output_path, 'a', encoding='utf-8') as srtFile:
               srtFile.write(segment)
 
-    def modify_ass(self, segments, ass_path):
+    def modify_ass(self, segments, ass_path, font_size=25):
       print("segments length:: ",len(segments), ass_path)
       with open(ass_path, encoding='utf_8_sig') as f:
         _ass = ass.parse(f)
@@ -1250,7 +1250,7 @@ class UVR():
         print("ass style", _ass.styles)
         print("ass keys", list(_ass.sections.keys()))
         
-      subtitle_style = f"{'{'+chr(92)+'fs25'+'}'+'{'+chr(92)+'b1&'+chr(92)+'c&HA95C21&'+chr(92)+'2c&HC8C8C8&'+chr(92)+'3c&HFFFFFF&'+chr(92)+'4c&H000000'+'}'}"
+      subtitle_style = f"{'{'+chr(92)+'fs'+font_size+'}'+'{'+chr(92)+'b1&'+chr(92)+'c&HA95C21&'+chr(92)+'2c&HC8C8C8&'+chr(92)+'3c&HFFFFFF&'+chr(92)+'4c&H000000'+'}'}"
       even_pos = f"{'{'+chr(92)+'an1&'+chr(92)+'pos(15,245)'+'}'}"
       odd_pos = f"{'{'+chr(92)+'an3&'+chr(92)+'pos(370,275)'+'}'}"
       ## Calculate time for each word
@@ -1323,7 +1323,7 @@ class UVR():
                 
         return None
                            
-    def process_start(self, inputPaths, stt, stt_mode, stt_language, stt_burn, stt_batch_size,stt_chuck_size,uvr_method, choosen_model, progress=gr.Progress()):
+    def process_start(self, inputPaths, stt, stt_mode, stt_language, stt_burn, stt_batch_size,stt_chuck_size,stt_font_size,uvr_method, choosen_model, progress=gr.Progress()):
         """Start the conversion for all the given mp3 and wav files"""
         print("process_start::")
         final_output = []
@@ -1459,7 +1459,7 @@ class UVR():
                     json.dump(result_segments['segments'], jsonFile, indent=4)
                   self.segments_to_srt(result_segments['segments'], srt_path)
                   subprocess.run(['ffmpeg', '-i', srt_path, ass_path])
-                  self.modify_ass(result_segments['segments'], ass_path)    
+                  self.modify_ass(result_segments['segments'], ass_path, stt_font_size)    
                               
                 ## merge video with split audio
                 if not is_audio and os.path.exists(video_file):
@@ -1562,7 +1562,7 @@ class UVR():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl_download:
             ydl_download.download([url])
 
-    def preprocess(self, media_inputs, link_inputs, stt, stt_mode, stt_language, stt_burn,stt_batch_size,stt_chuck_size, uvr_method, uvr_model, progress=gr.Progress()):
+    def preprocess(self, media_inputs, link_inputs, stt, stt_mode, stt_language, stt_burn,stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model, progress=gr.Progress()):
       progress(0.05, desc="Processing media...")
       media_inputs = media_inputs if media_inputs is not None else []
       media_inputs = media_inputs if isinstance(media_inputs, list) else [media_inputs]
@@ -1582,7 +1582,7 @@ class UVR():
             media_inputs.append(download_path) 
       print(media_inputs, link_inputs, uvr_method, uvr_model)
       if media_inputs is not None and len(media_inputs) > 0 and media_inputs[0] != '':
-        output = root.process_start(media_inputs, stt, stt_mode, stt_language, stt_burn, stt_batch_size,stt_chuck_size, uvr_method, uvr_model)
+        output = root.process_start(media_inputs, stt, stt_mode, stt_language, stt_burn, stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model)
         return output
       else:
         raise gr.Error("Input not valid!!")
@@ -1617,8 +1617,9 @@ class UVR():
                             stt_language = gr.Dropdown(['Automatic detection', 'Arabic (ar)', 'Chinese (zh)', 'Czech (cs)', 'Danish (da)', 'Dutch (nl)', 'English (en)', 'Finnish (fi)', 'French (fr)', 'German (de)', 'Greek (el)', 'Hebrew (he)', 'Hindi (hi)', 'Hungarian (hu)', 'Italian (it)', 'Japanese (ja)', 'Korean (ko)', 'Persian (fa)', 'Polish (pl)', 'Portuguese (pt)', 'Russian (ru)', 'Spanish (es)', 'Turkish (tr)', 'Ukrainian (uk)', 'Urdu (ur)', 'Vietnamese (vi)'], label='Target language', value='Automatic detection',scale=1)
                             stt_burn = gr.Checkbox(label="Enable",  value=False, interative=True, info='Burn subtitle into video',scale=1)
                           with gr.Row():  
-                            stt_batch_size =gr.Slider(minimum=2, maximum=24, value=8, label="Batch Size", step=1,scale=1)
+                            stt_batch_size =gr.Slider(minimum=2, maximum=24, value=round(int(torch.cuda.get_device_properties(0).total_memory)*1.6/1000000000), label="Batch Size", step=1,scale=1)
                             stt_chuck_size = gr.Slider(minimum=5, maximum=50, value=10, label="Chuck Size", step=1,scale=1)
+                            stt_font_size = gr.Slider(minimum=10, maximum=30, value=25, label="Font Size", step=1,scale=1)
                           def update_visible(stt_check):
                             return  gr.update(visible=stt_check)
                           stt.change(update_visible, stt, [stt_option])
@@ -1660,6 +1661,7 @@ class UVR():
                 stt_burn,
                 stt_batch_size,
                 stt_chuck_size,
+                stt_font_size,
                 uvr_type,
                 uvr_model
                 ], outputs=media_output)
