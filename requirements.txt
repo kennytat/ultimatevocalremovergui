@@ -45,5 +45,5 @@ yt-dlp
 ass
 python-dotenv
 ffmpeg-python>=0.2.0
-git+https://github.com/m-bain/whisperx.git
+whisperx @ git+https://github.com/kennytat/whisperx.git@large-v3
 gradio==3.50.2

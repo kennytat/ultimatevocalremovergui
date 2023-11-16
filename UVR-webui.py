@@ -172,6 +172,7 @@ if not os.path.isdir(SAMPLE_CLIP_PATH):
 LANGUAGES = {
     'Automatic detection': None,
     'Arabic (ar)': 'ar',
+    'Cantonese (yue)': 'yue',
     'Chinese (zh)': 'zh',
     'Czech (cs)': 'cs',
     'Danish (da)': 'da',
@@ -1209,7 +1210,7 @@ class UVR():
           )
       audio = whisperx.load_audio(audio_wav)
       print("Transcribing::")
-      result = model.transcribe(audio, batch_size=batch_size, chunk_size=chunk_size)
+      result = model.transcribe(WHISPER_MODEL_SIZE, audio, batch_size=batch_size, chunk_size=chunk_size)
       gc.collect(); torch.cuda.empty_cache(); del model
       print("Aligning::")
       model_a, metadata = whisperx.load_align_model(
@@ -1614,7 +1615,7 @@ class UVR():
                         with gr.Accordion(label="Subtitle Option", visible=False) as stt_option:
                           with gr.Row():
                             stt_mode = gr.Dropdown(['Normal', 'Karaoke'], label='Subtitle Mode', value='Normal',scale=1)
-                            stt_language = gr.Dropdown(['Automatic detection', 'Arabic (ar)', 'Chinese (zh)', 'Czech (cs)', 'Danish (da)', 'Dutch (nl)', 'English (en)', 'Finnish (fi)', 'French (fr)', 'German (de)', 'Greek (el)', 'Hebrew (he)', 'Hindi (hi)', 'Hungarian (hu)', 'Italian (it)', 'Japanese (ja)', 'Korean (ko)', 'Persian (fa)', 'Polish (pl)', 'Portuguese (pt)', 'Russian (ru)', 'Spanish (es)', 'Turkish (tr)', 'Ukrainian (uk)', 'Urdu (ur)', 'Vietnamese (vi)'], label='Target language', value='Automatic detection',scale=1)
+                            stt_language = gr.Dropdown(['Automatic detection', 'Arabic (ar)', 'Cantonese (yue)', 'Chinese (zh)', 'Czech (cs)', 'Danish (da)', 'Dutch (nl)', 'English (en)', 'Finnish (fi)', 'French (fr)', 'German (de)', 'Greek (el)', 'Hebrew (he)', 'Hindi (hi)', 'Hungarian (hu)', 'Italian (it)', 'Japanese (ja)', 'Korean (ko)', 'Persian (fa)', 'Polish (pl)', 'Portuguese (pt)', 'Russian (ru)', 'Spanish (es)', 'Turkish (tr)', 'Ukrainian (uk)', 'Urdu (ur)', 'Vietnamese (vi)'], label='Target language', value='Automatic detection',scale=1)
                             stt_burn = gr.Checkbox(label="Enable",  value=False, interative=True, info='Burn subtitle into video',scale=1)
                           with gr.Row():  
                             stt_batch_size =gr.Slider(minimum=2, maximum=24, value=round(int(torch.cuda.get_device_properties(0).total_memory)*1.6/1000000000), label="Batch Size", step=1,scale=1)
