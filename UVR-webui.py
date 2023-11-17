@@ -51,7 +51,7 @@ if torch.cuda.is_available():
     device = "cuda"
     list_compute_type = ['float16', 'float32']
     compute_type_default = 'float16'
-    whisper_model_default = 'large-v2' if CUDA_MEM > 9000000000 else 'medium'
+    whisper_model_default = 'large-v3' if CUDA_MEM > 9000000000 else 'medium'
 else:
     device = "cpu"
     list_compute_type = ['float32']
@@ -1251,7 +1251,7 @@ class UVR():
         print("ass style", _ass.styles)
         print("ass keys", list(_ass.sections.keys()))
         
-      subtitle_style = f"{'{'+chr(92)+'fs'+font_size+'}'+'{'+chr(92)+'b1&'+chr(92)+'c&HA95C21&'+chr(92)+'2c&HC8C8C8&'+chr(92)+'3c&HFFFFFF&'+chr(92)+'4c&H000000'+'}'}"
+      subtitle_style = f"{'{'+chr(92)+'fs'+str(font_size)+'}'+'{'+chr(92)+'b1&'+chr(92)+'c&HA95C21&'+chr(92)+'2c&HC8C8C8&'+chr(92)+'3c&HFFFFFF&'+chr(92)+'4c&H000000'+'}'}"
       even_pos = f"{'{'+chr(92)+'an1&'+chr(92)+'pos(15,245)'+'}'}"
       odd_pos = f"{'{'+chr(92)+'an3&'+chr(92)+'pos(370,275)'+'}'}"
       ## Calculate time for each word
@@ -1324,7 +1324,7 @@ class UVR():
                 
         return None
                            
-    def process_start(self, inputPaths, stt, stt_mode, stt_language, stt_burn, stt_batch_size,stt_chuck_size,stt_font_size,uvr_method, choosen_model, progress=gr.Progress()):
+    def process_start(self, inputPaths, stt, stt_mode, stt_model, stt_language, stt_burn, stt_batch_size,stt_chuck_size,stt_font_size,uvr_method, choosen_model, progress=gr.Progress()):
         """Start the conversion for all the given mp3 and wav files"""
         print("process_start::")
         final_output = []
@@ -1454,7 +1454,7 @@ class UVR():
                 ## export srt,ass with timestamp
                 if stt and os.path.exists(vocal_path):
                   stt_language = LANGUAGES[stt_language]
-                  result_segments = self.speech_to_segments(audio_wav=vocal_path,language=stt_language,batch_size=stt_batch_size,chunk_size=stt_chuck_size)
+                  result_segments = self.speech_to_segments(audio_wav=vocal_path,language=stt_language, WHISPER_MODEL_SIZE=stt_model, batch_size=stt_batch_size,chunk_size=stt_chuck_size)
                   print("dumping speech_to_segments::")
                   with open(json_path, 'a', encoding='utf-8') as jsonFile:
                     json.dump(result_segments['segments'], jsonFile, indent=4)
@@ -1563,7 +1563,7 @@ class UVR():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl_download:
             ydl_download.download([url])
 
-    def preprocess(self, media_inputs, link_inputs, stt, stt_mode, stt_language, stt_burn,stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model, progress=gr.Progress()):
+    def preprocess(self, media_inputs, link_inputs, stt, stt_mode, stt_model, stt_language, stt_burn,stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model, progress=gr.Progress()):
       progress(0.05, desc="Processing media...")
       media_inputs = media_inputs if media_inputs is not None else []
       media_inputs = media_inputs if isinstance(media_inputs, list) else [media_inputs]
@@ -1583,7 +1583,7 @@ class UVR():
             media_inputs.append(download_path) 
       print(media_inputs, link_inputs, uvr_method, uvr_model)
       if media_inputs is not None and len(media_inputs) > 0 and media_inputs[0] != '':
-        output = root.process_start(media_inputs, stt, stt_mode, stt_language, stt_burn, stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model)
+        output = root.process_start(media_inputs, stt, stt_mode, stt_model, stt_language, stt_burn, stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model)
         return output
       else:
         raise gr.Error("Input not valid!!")
@@ -1615,10 +1615,11 @@ class UVR():
                         with gr.Accordion(label="Subtitle Option", visible=False) as stt_option:
                           with gr.Row():
                             stt_mode = gr.Dropdown(['Normal', 'Karaoke'], label='Subtitle Mode', value='Normal',scale=1)
+                            stt_model = gr.Dropdown(['tiny', 'base', 'small', 'medium', 'large-v1', 'large-v2', 'large-v3'], value=whisper_model_default, label="Whisper model", interactive=True, scale=1)
                             stt_language = gr.Dropdown(['Automatic detection', 'Arabic (ar)', 'Cantonese (yue)', 'Chinese (zh)', 'Czech (cs)', 'Danish (da)', 'Dutch (nl)', 'English (en)', 'Finnish (fi)', 'French (fr)', 'German (de)', 'Greek (el)', 'Hebrew (he)', 'Hindi (hi)', 'Hungarian (hu)', 'Italian (it)', 'Japanese (ja)', 'Korean (ko)', 'Persian (fa)', 'Polish (pl)', 'Portuguese (pt)', 'Russian (ru)', 'Spanish (es)', 'Turkish (tr)', 'Ukrainian (uk)', 'Urdu (ur)', 'Vietnamese (vi)'], label='Target language', value='Automatic detection',scale=1)
                             stt_burn = gr.Checkbox(label="Enable",  value=False, interative=True, info='Burn subtitle into video',scale=1)
                           with gr.Row():  
-                            stt_batch_size =gr.Slider(minimum=2, maximum=24, value=round(int(torch.cuda.get_device_properties(0).total_memory)*1.6/1000000000), label="Batch Size", step=1,scale=1)
+                            stt_batch_size =gr.Slider(minimum=2, maximum=50, value=round(int(torch.cuda.get_device_properties(0).total_memory)*1.6/1000000000), label="Batch Size", step=1,scale=1)
                             stt_chuck_size = gr.Slider(minimum=5, maximum=50, value=10, label="Chuck Size", step=1,scale=1)
                             stt_font_size = gr.Slider(minimum=10, maximum=30, value=25, label="Font Size", step=1,scale=1)
                           def update_visible(stt_check):
@@ -1658,6 +1659,7 @@ class UVR():
                 link_input,
                 stt,
                 stt_mode,
+                stt_model,
                 stt_language,
                 stt_burn,
                 stt_batch_size,
@@ -1677,7 +1679,7 @@ class UVR():
           inbrowser=True,
           show_error=True,
           server_name="0.0.0.0",
-          server_port=6870,
+          server_port=6871,
           enable_queue=True,
           # quiet=True, 
           share=False   
