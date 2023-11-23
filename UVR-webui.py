@@ -1446,6 +1446,8 @@ class UVR():
                 
                 ## Define path
                 inst_path = os.path.join(export_path, f'{audio_file_base}_({INST_STEM}).wav')
+                other_path = os.path.join(export_path, f'{audio_file_base}_({OTHER_STEM}).wav')
+                bgmusic_path = inst_path if os.path.exists(inst_path) else other_path
                 vocal_path = os.path.join(export_path, f'{audio_file_base}_({VOCAL_STEM}).wav')
                 srt_path = os.path.join(export_path, f'{audio_file_base}.srt')
                 ass_path = os.path.join(export_path, f'{audio_file_base}.ass')
@@ -1468,13 +1470,13 @@ class UVR():
                   if stt and stt_mode == 'Karaoke':
                     ## create video file with dual mono of original audio and removed vocals
                     ffmpeg_command = [
-                        "ffmpeg", "-i", video_file, "-i", inst_path,
+                        "ffmpeg", "-i", video_file, "-i", bgmusic_path,
                         "-filter_complex", "[0:a]pan=mono|c0=c0[a1];[1:a]pan=mono|c0=c1[a2]", "-map", "0:v", "-map", "[a1]", "-map", "[a2]", "-c:v", "libx264", "-c:a", "aac", "-strict", "experimental", media_output_file
                     ]
                   else:
                     ## create video file with stereo removed vocals
                     ffmpeg_command = [
-                        "ffmpeg", "-i", video_file, "-i", inst_path,
+                        "ffmpeg", "-i", video_file, "-i", bgmusic_path,
                         "-c:v", "copy", "-c:a", "aac", "-map", "0:v", "-map", "1:a", "-shortest", media_output_file
                     ]
                   if stt and stt_burn and os.path.exists(ass_path):
@@ -1485,7 +1487,7 @@ class UVR():
                   print("merging video::", ffmpeg_command)
                   subprocess.run(ffmpeg_command)
                 else:
-                  media_output_file = inst_path
+                  media_output_file = bgmusic_path
                   
                 ## Copy to custom output directory if specify 
                 COPY_OUTPUT_DIR = os.environ.get('COPY_OUTPUT_DIR', "")
