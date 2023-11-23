@@ -1679,7 +1679,7 @@ class UVR():
           inbrowser=True,
           show_error=True,
           server_name="0.0.0.0",
-          server_port=6871,
+          server_port=6870,
           enable_queue=True,
           # quiet=True, 
           share=False   
