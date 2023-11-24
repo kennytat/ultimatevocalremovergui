@@ -19,5 +19,6 @@ RUN rm -rf /root/.cache/pip && rm -rf /var/cache/apt/*
 COPY . .
 
 EXPOSE 6870
+EXPOSE 8000
 
-CMD python UVR-webui.py
+CMD python main.py & python UVR-webui.py

@@ -1,8 +1,6 @@
 version: "3.8"
 services:
   soni:
-    env_file:
-      - .env
     build:
       context: .
       dockerfile: Dockerfile
@@ -19,6 +17,7 @@ services:
     restart: unless-stopped
     ports:
       - 6870:6870
+      - 6871:8000
     # environment:
     #   COPY_OUTPUT_DIR: ""
     #   AUTH_USER: ""

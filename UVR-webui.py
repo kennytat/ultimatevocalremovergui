@@ -1669,14 +1669,14 @@ class UVR():
                 stt_font_size,
                 uvr_type,
                 uvr_model
-                ], outputs=media_output)
+                ], outputs=media_output, api_name="convert")
 
     
         auth_user = os.getenv('AUTH_USER', '')
         auth_pass = os.getenv('AUTH_PASS', '')
         demo.queue(concurrency_count=1).launch(
           auth=(auth_user, auth_pass) if auth_user != '' and auth_pass != '' else None,
-          show_api=False,
+          show_api=True,
           debug=True,
           inbrowser=True,
           show_error=True,
@@ -1688,6 +1688,7 @@ class UVR():
           )
 
 if __name__ == "__main__":
+  # shutil.rmtree(os.path.join(tempfile.gettempdir(), "gradio"),ignore_errors=True)
   shutil.rmtree(temp_dir,ignore_errors=True)
   Path(temp_dir).mkdir(parents=True, exist_ok=True)
   root = UVR()
