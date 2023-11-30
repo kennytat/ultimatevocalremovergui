@@ -6,4 +6,4 @@
 *.yaml
 .env
 !themes/*
-templates/*
+models/*

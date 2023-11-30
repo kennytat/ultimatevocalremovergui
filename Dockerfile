@@ -21,4 +21,4 @@ COPY . .
 EXPOSE 6870
 EXPOSE 8000
 
-CMD python main.py & python UVR-webui.py
+ENTRYPOINT ["/bin/bash", "-c", "/app/entrypoint.sh"]

@@ -1324,7 +1324,7 @@ class UVR():
                 
         return None
                            
-    def process_start(self, inputPaths, stt, stt_mode, stt_model, stt_language, stt_burn, stt_batch_size,stt_chuck_size,stt_font_size,uvr_method, choosen_model, progress=gr.Progress()):
+    def process_start(self, inputPaths, video_burn, stt, stt_mode, stt_model, stt_language, stt_burn, stt_batch_size,stt_chuck_size,stt_font_size,uvr_method, choosen_model, progress=gr.Progress()):
         """Start the conversion for all the given mp3 and wav files"""
         print("process_start::")
         final_output = []
@@ -1465,7 +1465,7 @@ class UVR():
                   self.modify_ass(result_segments['segments'], ass_path, stt_font_size)    
                               
                 ## merge video with split audio
-                if not is_audio and os.path.exists(video_file):
+                if video_burn and not is_audio and os.path.exists(video_file):
                   media_output_file = os.path.join(export_path, os.path.basename(video_file))
                   if stt and stt_mode == 'Karaoke':
                     ## create video file with dual mono of original audio and removed vocals
@@ -1565,8 +1565,9 @@ class UVR():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl_download:
             ydl_download.download([url])
 
-    def preprocess(self, media_inputs, link_inputs, stt, stt_mode, stt_model, stt_language, stt_burn,stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model, progress=gr.Progress()):
+    def preprocess(self, media_inputs, link_inputs, video_burn, stt, stt_mode, stt_model, stt_language, stt_burn,stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model, progress=gr.Progress()):
       progress(0.05, desc="Processing media...")
+      print(media_inputs, link_inputs, video_burn, stt, stt_mode, stt_model, stt_language, stt_burn,stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model)
       media_inputs = media_inputs if media_inputs is not None else []
       media_inputs = media_inputs if isinstance(media_inputs, list) else [media_inputs]
       media_inputs = [media_input if isinstance(media_input, str) else media_input.name for media_input in media_inputs]
@@ -1578,6 +1579,7 @@ class UVR():
       if link_inputs is not None and len(link_inputs) > 0 and link_inputs[0] != '':
         for url in link_inputs:
           url = url.strip()
+          url = url.replace('linkhttps://', 'https://')
           if url.startswith('https://www.youtube.com'):
             media_info =  ydl.extract_info(url, download=False)
             download_path = f"{os.path.join(youtube_temp_dir, media_info['title'])}.mp4"
@@ -1585,7 +1587,7 @@ class UVR():
             media_inputs.append(download_path) 
       print(media_inputs, link_inputs, uvr_method, uvr_model)
       if media_inputs is not None and len(media_inputs) > 0 and media_inputs[0] != '':
-        output = root.process_start(media_inputs, stt, stt_mode, stt_model, stt_language, stt_burn, stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model)
+        output = root.process_start(media_inputs, video_burn, stt, stt_mode, stt_model, stt_language, stt_burn, stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model)
         return output
       else:
         raise gr.Error("Input not valid!!")
@@ -1610,16 +1612,17 @@ class UVR():
                 with gr.Row():
                     with gr.Column():
                         #media_input = gr.UploadButton("Click to Upload a video", file_types=["video"], file_count="single") #gr.Video() # height=300,width=300
-                        media_input = gr.File(label="VIDEO|AUDIO", interactive=True, file_count='multiple', file_types=['audio','video'])
-                        link_input = gr.Textbox(label="Youtube Link",info="Example: https://www.youtube.com/watch?v=-biOGdYiF-I,https://www.youtube.com/watch?v=-biOGdYiF-I", placeholder="URL goes here, seperate by comma...")        
+                        media_input = gr.File(label="VIDEO|AUDIO",file_count='multiple', file_types=['audio','video'])
+                        link_input = gr.Textbox(label="Youtube Link",info="Example: https://www.youtube.com/watch?v=-biOGdYiF-I,https://www.youtube.com/watch?v=-biOGdYiF-I", type="text", placeholder="URL goes here, seperate by comma...")        
                         with gr.Row():
-                          stt = gr.Checkbox(label="Enable",  value=False, interative=True, info='Export subtitle with timestamp')
+                          video_burn = gr.Checkbox(label="Enable",  value=True, info='Export with video', visible=False,scale=1)
+                          stt = gr.Checkbox(label="Enable",  value=False,info='Export subtitle with timestamp',scale=1)
                         with gr.Accordion(label="Subtitle Option", visible=False) as stt_option:
                           with gr.Row():
                             stt_mode = gr.Dropdown(['Normal', 'Karaoke'], label='Subtitle Mode', value='Normal',scale=1)
-                            stt_model = gr.Dropdown(['tiny', 'base', 'small', 'medium', 'large-v1', 'large-v2', 'large-v3'], value=whisper_model_default, label="Whisper model", interactive=True, scale=1)
+                            stt_model = gr.Dropdown(['tiny', 'base', 'small', 'medium', 'large-v1', 'large-v2', 'large-v3'], value=whisper_model_default, label="Whisper model", scale=1)
                             stt_language = gr.Dropdown(['Automatic detection', 'Arabic (ar)', 'Cantonese (yue)', 'Chinese (zh)', 'Czech (cs)', 'Danish (da)', 'Dutch (nl)', 'English (en)', 'Finnish (fi)', 'French (fr)', 'German (de)', 'Greek (el)', 'Hebrew (he)', 'Hindi (hi)', 'Hungarian (hu)', 'Italian (it)', 'Japanese (ja)', 'Korean (ko)', 'Persian (fa)', 'Polish (pl)', 'Portuguese (pt)', 'Russian (ru)', 'Spanish (es)', 'Turkish (tr)', 'Ukrainian (uk)', 'Urdu (ur)', 'Vietnamese (vi)'], label='Target language', value='Automatic detection',scale=1)
-                            stt_burn = gr.Checkbox(label="Enable",  value=False, interative=True, info='Burn subtitle into video',scale=1)
+                            stt_burn = gr.Checkbox(label="Enable",  value=False, info='Burn subtitle into video',scale=1)
                           with gr.Row():  
                             stt_batch_size =gr.Slider(minimum=2, maximum=50, value=round(int(torch.cuda.get_device_properties(0).total_memory)*1.6/1000000000), label="Batch Size", step=1,scale=1)
                             stt_chuck_size = gr.Slider(minimum=5, maximum=50, value=10, label="Chuck Size", step=1,scale=1)
@@ -1630,9 +1633,9 @@ class UVR():
                         gr.ClearButton(components=[media_input,link_input], size='sm')
                         with gr.Row():
                           uvr_type_option = [str(MDX_ARCH_TYPE),str(DEMUCS_ARCH_TYPE),str(VR_ARCH_TYPE)]
-                          uvr_type = gr.Dropdown(choices=uvr_type_option, value=str(DEMUCS_ARCH_TYPE), label='AI Tech', info="Choose AI Tech for UVR", interactive=True)
+                          uvr_type = gr.Dropdown(choices=uvr_type_option, value=str(DEMUCS_ARCH_TYPE), label='AI Tech', info="Choose AI Tech for UVR")
                           uvr_model_option = [str(value) for key, value in self.demucs_name_select_MAPPER.items()]
-                          uvr_model = gr.Dropdown(choices=uvr_model_option,value="v3 | UVR_Model_1",label='UVR Model', info="Choose UVR Model", interactive=True)
+                          uvr_model = gr.Dropdown(choices=uvr_model_option,value="v3 | UVR_Model_1",label='UVR Model', info="Choose UVR Model")
                           ## media_input change function
                           def update_model(uvr_type):
                             values = []
@@ -1659,6 +1662,7 @@ class UVR():
             media_button.click(self.preprocess, inputs=[
                 media_input,
                 link_input,
+                video_burn,
                 stt,
                 stt_mode,
                 stt_model,
@@ -1668,13 +1672,14 @@ class UVR():
                 stt_chuck_size,
                 stt_font_size,
                 uvr_type,
-                uvr_model
-                ], outputs=media_output, api_name="convert")
+                uvr_model,
+                
+                ], outputs=media_output, api_name="convert", concurrency_limit=1)
 
     
         auth_user = os.getenv('AUTH_USER', '')
         auth_pass = os.getenv('AUTH_PASS', '')
-        demo.queue(concurrency_count=1).launch(
+        demo.queue().launch(
           auth=(auth_user, auth_pass) if auth_user != '' and auth_pass != '' else None,
           show_api=True,
           debug=True,
@@ -1682,7 +1687,6 @@ class UVR():
           show_error=True,
           server_name="0.0.0.0",
           server_port=6870,
-          enable_queue=True,
           # quiet=True, 
           share=False   
           )
