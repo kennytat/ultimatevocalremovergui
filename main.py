@@ -1,6 +1,7 @@
 import os
+# import json
 from gradio_client import Client
-from fastapi import FastAPI, Form, HTTPException, Request, Response, UploadFile, File
+from fastapi import FastAPI, Form, HTTPException, Request, Response, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -29,9 +30,10 @@ def chord_recognition(file_path):
 
 ## Call api to gradio for file processing
 def media_split(file_path="", link_url=""):
-  auth_user = os.getenv('AUTH_USER', '')
-  auth_pass = os.getenv('AUTH_PASS', '')
-  client = Client("http://localhost:6870/", auth=(auth_user, auth_pass) if auth_user != '' and auth_pass != '' else None)
+  # auth_user = os.getenv('AUTH_USER', '')
+  # auth_pass = os.getenv('AUTH_PASS', '')
+  # client = Client("http://localhost:6870/", auth=(auth_user, auth_pass) if auth_user != '' and auth_pass != '' else None)
+  client = Client("http://localhost:6870/")
   return client.predict(
       [file_path] if file_path else [],	# List[str] (List of filepath(s) or URL(s) to files) in 'VIDEO|AUDIO' File component
       link_url if link_url else "",	# str  in 'Youtube Link' Textbox component ## https://www.youtube.com/watch?v=-biOGdYiF-I
@@ -149,7 +151,24 @@ async def media_upload(file: UploadFile = File(...)):
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
-      
+
+# @app.websocket("/ws/media-upload")
+# async def websocket_media_upload(websocket: WebSocket):
+#     await websocket.accept()
+#     try:
+#         while True:
+#             # Receive file as bytes
+#             file_data = await websocket.receive_bytes()
+#             file_name = "uploaded_file"  # You might want to generate a unique file name
+#             tmp_file_path = os.path.join(temp_dir, file_name)
+#             # Write file to disk
+#             with open(tmp_file_path, "wb") as temp_file:
+#                 temp_file.write(file_data)  
+#             response = process_media(file_path=tmp_file_path)
+#             await websocket.send_json(response)
+#     except WebSocketDisconnect:
+#         print("WebSocket disconnected")
+             
 @app.post("/link-upload")
 async def link_upload(link_input: LinkInput):
     if link_input.link.startswith("https://www.youtube.com"):
@@ -160,7 +179,27 @@ async def link_upload(link_input: LinkInput):
           raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
     else:
       raise HTTPException(status_code=500, detail=f"Link input is not valid URL: {link_input.link}")
-      
+
+# @app.websocket("/ws/link-upload")
+# async def websocket_link_upload(websocket: WebSocket):
+#     await websocket.accept()
+#     try:
+#         while True:
+#             data = await websocket.receive_text()
+#             link_input = json.loads(data)
+#             print("link::", link_input["link"])
+#             if link_input["link"].startswith("https://www.youtube.com"):
+#                 try:
+#                     response = process_media(link_url=link_input["link"])
+#                     await websocket.send_json(response)
+#                 except Exception as e:
+#                     await websocket.send_text(f"Error: {e}")
+#             else:
+#                 await websocket.send_text("Invalid URL")
+#     except WebSocketDisconnect:
+#         print("WebSocket disconnected")
+
+                  
 @app.post("/file")
 async def get_file(file_path: FilePath) -> FileResponse:
     if os.path.exists(file_path.path):
@@ -175,9 +214,7 @@ async def get_file(file_path: FilePath):
         return respone
     else:
         raise HTTPException(status_code=404, detail="File not found")
-           
+          
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-

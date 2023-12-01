@@ -46,10 +46,11 @@ ass
 python-dotenv
 ffmpeg-python>=0.2.0
 whisperx @ git+https://github.com/kennytat/whisperx.git@large-v3
-gradio
+gradio==3.50.2
 ## For fastapi and music separator webUI server
 fastapi
 uvicorn
 starlette
 itsdangerous
 autochord
+# websockets

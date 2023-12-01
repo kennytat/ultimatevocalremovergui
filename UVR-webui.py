@@ -1579,7 +1579,6 @@ class UVR():
       if link_inputs is not None and len(link_inputs) > 0 and link_inputs[0] != '':
         for url in link_inputs:
           url = url.strip()
-          url = url.replace('linkhttps://', 'https://')
           if url.startswith('https://www.youtube.com'):
             media_info =  ydl.extract_info(url, download=False)
             download_path = f"{os.path.join(youtube_temp_dir, media_info['title'])}.mp4"
@@ -1592,7 +1591,7 @@ class UVR():
       else:
         raise gr.Error("Input not valid!!")
       
-    def start_webui(self):
+    def init_webui(self):
         title = "<center><strong><font size='7'>Ultimate Vocal Remover</font></strong></center>"
         description = """
         ### 🎥 **Ultimate Vocal Remover Tool** 📽️
@@ -1603,7 +1602,7 @@ class UVR():
             panel_background_fill = "transparent",
             body_text_color = "#afafaf"
         )
-        with gr.Blocks(title="UVR",theme=theme) as demo:
+        with gr.Blocks(title="UVR",theme=theme) as self.demo:
             gr.Markdown(title)
             gr.Markdown(description)
 
@@ -1674,12 +1673,17 @@ class UVR():
                 uvr_type,
                 uvr_model,
                 
-                ], outputs=media_output, api_name="convert", concurrency_limit=1)
+                ], outputs=media_output, api_name="convert")
 
-    
-        auth_user = os.getenv('AUTH_USER', '')
-        auth_pass = os.getenv('AUTH_PASS', '')
-        demo.queue().launch(
+    def start_webui(self):
+        proxy = os.getenv('API_ENABLE', '')
+        if proxy and proxy == 'true':
+          auth_user = ''
+          auth_pass = ''
+        else:
+          auth_user = os.getenv('AUTH_USER', '')
+          auth_pass = os.getenv('AUTH_PASS', '')
+        self.demo.queue(concurrency_count=1).launch(
           auth=(auth_user, auth_pass) if auth_user != '' and auth_pass != '' else None,
           show_api=True,
           debug=True,
@@ -1696,4 +1700,5 @@ if __name__ == "__main__":
   shutil.rmtree(temp_dir,ignore_errors=True)
   Path(temp_dir).mkdir(parents=True, exist_ok=True)
   root = UVR()
+  root.init_webui()
   root.start_webui()
