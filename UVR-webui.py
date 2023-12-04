@@ -1524,6 +1524,7 @@ class UVR():
             print(f'\n\n{PROCESS_FAILED}')
             print(time_elapsed())
             self.process_end(error=e)
+        gc.collect(); torch.cuda.empty_cache(); del seperator
         return final_output                
             
     def process_end(self, error=None):

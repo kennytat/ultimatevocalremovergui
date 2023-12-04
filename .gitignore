@@ -7,3 +7,4 @@
 .env
 !themes/*
 templates/*
+chords.lab

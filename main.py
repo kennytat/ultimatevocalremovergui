@@ -1,5 +1,5 @@
 import os
-# import json
+import json
 from gradio_client import Client
 from fastapi import FastAPI, Form, HTTPException, Request, Response, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
@@ -9,11 +9,12 @@ from starlette.middleware.sessions import SessionMiddleware
 # from starlette.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import requests
 # import subprocess
 # import shutil
 import tempfile
 import zipfile
-import autochord
+# import autochord
 # from urllib.parse import urljoin
 
 temp_dir = os.path.join(tempfile.gettempdir(), "ultimatevocalremover")
@@ -23,9 +24,17 @@ class LinkInput(BaseModel):
 class FilePath(BaseModel):
     path: str
 
+def get_final_redirected_url(url):
+    try:
+        response = requests.head(url, allow_redirects=True)
+        return response.url
+    except requests.RequestException as e:
+        print(f"Error: {e}")
+        return "invalid_url"
+      
 def chord_recognition(file_path):
-  chord_data = autochord.recognize(file_path, lab_fn='chords.lab')
-  chord_data = [{'start': start, 'end': end, 'name': name} for start, end, name in chord_data]
+  # chord_data = autochord.recognize(file_path, lab_fn='chords.lab')
+  chord_data = [{'start': start, 'end': end, 'name': name} for start, end, name in chord_data] if chord_data else []
   return chord_data
 
 ## Call api to gradio for file processing
@@ -147,58 +156,50 @@ async def media_upload(file: UploadFile = File(...)):
         tmp_file_path = os.path.join(temp_dir,file.filename)
         with open(tmp_file_path, "wb") as temp_file:
             temp_file.write(contents)
-        response = process_media(file_path=tmp_file_path)
-        return response
+        # response = process_media(file_path=tmp_file_path)
+        return {"url": tmp_file_path}                                   
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
-
-# @app.websocket("/ws/media-upload")
-# async def websocket_media_upload(websocket: WebSocket):
-#     await websocket.accept()
-#     try:
-#         while True:
-#             # Receive file as bytes
-#             file_data = await websocket.receive_bytes()
-#             file_name = "uploaded_file"  # You might want to generate a unique file name
-#             tmp_file_path = os.path.join(temp_dir, file_name)
-#             # Write file to disk
-#             with open(tmp_file_path, "wb") as temp_file:
-#                 temp_file.write(file_data)  
-#             response = process_media(file_path=tmp_file_path)
-#             await websocket.send_json(response)
-#     except WebSocketDisconnect:
-#         print("WebSocket disconnected")
              
 @app.post("/link-upload")
 async def link_upload(link_input: LinkInput):
-    if link_input.link.startswith("https://www.youtube.com"):
+    final_url = get_final_redirected_url(link_input.url)
+    if final_url.startswith("https://www.youtube.com"):
       try:
-        response = process_media(link_url=link_input.link)
+        response = process_media(link_url=final_url)
         return response
       except Exception as e:
           raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
     else:
-      raise HTTPException(status_code=500, detail=f"Link input is not valid URL: {link_input.link}")
+      raise HTTPException(status_code=500, detail=f"Link input is not valid URL: {link_input.url}")
 
-# @app.websocket("/ws/link-upload")
-# async def websocket_link_upload(websocket: WebSocket):
-#     await websocket.accept()
-#     try:
-#         while True:
-#             data = await websocket.receive_text()
-#             link_input = json.loads(data)
-#             print("link::", link_input["link"])
-#             if link_input["link"].startswith("https://www.youtube.com"):
-#                 try:
-#                     response = process_media(link_url=link_input["link"])
-#                     await websocket.send_json(response)
-#                 except Exception as e:
-#                     await websocket.send_text(f"Error: {e}")
-#             else:
-#                 await websocket.send_text("Invalid URL")
-#     except WebSocketDisconnect:
-#         print("WebSocket disconnected")
-
+@app.websocket("/ws/media-upload")
+async def websocket_link_upload(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+              await websocket.send_text("pong")
+            else:
+              try:
+                  link_input = json.loads(data)
+                  link_input["url"] = get_final_redirected_url(link_input["url"]) if link_input["type"] == "online" else link_input["url"]
+                  if link_input == "invalid_url":
+                    await websocket.send_text("invalid_url")
+                  else:
+                    response = process_media(link_url=link_input["url"]) if link_input["type"] == "online" else process_media(file_path=link_input["url"])
+                    await websocket.send_json(response)
+                    await websocket.close()
+              except Exception as e:
+                  await websocket.send_json('{"error": "process_media_error"}')
+    except WebSocketDisconnect:
+        print("WebSocket disconnected")
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+    finally:
+        # Any cleanup code can go here
+        pass
                   
 @app.post("/file")
 async def get_file(file_path: FilePath) -> FileResponse:

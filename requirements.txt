@@ -52,5 +52,5 @@ fastapi
 uvicorn
 starlette
 itsdangerous
-autochord
-# websockets
+# autochord
+websockets
