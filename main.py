@@ -24,6 +24,30 @@ class LinkInput(BaseModel):
 class FilePath(BaseModel):
     path: str
 
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def send_message(self, message: str, websocket: WebSocket):
+        await websocket.send_text(message)
+
+    async def send_json(self, message: object, websocket: WebSocket):
+        await websocket.send_json(message)
+
+    async def broadcast(self, message: str):
+        for connection in self.active_connections:
+            await connection.send_text(message)
+
+## Init websocket manager
+manager = ConnectionManager()
+           
 def get_final_redirected_url(url):
     try:
         response = requests.head(url, allow_redirects=True)
@@ -33,9 +57,14 @@ def get_final_redirected_url(url):
         return "invalid_url"
       
 def chord_recognition(file_path):
+  try:
   # chord_data = autochord.recognize(file_path, lab_fn='chords.lab')
-  chord_data = [{'start': start, 'end': end, 'name': name} for start, end, name in chord_data] if chord_data else []
-  return chord_data
+    # chord_data = [{'start': start, 'end': end, 'name': name} for start, end, name in chord_data] if chord_data else []
+    # return chord_data
+    return []
+  except:
+    print('chord_recognition failed::')
+    return []
 
 ## Call api to gradio for file processing
 def media_split(file_path="", link_url=""):
@@ -175,26 +204,26 @@ async def link_upload(link_input: LinkInput):
 
 @app.websocket("/ws/media-upload")
 async def websocket_link_upload(websocket: WebSocket):
-    await websocket.accept()
+    await manager.connect(websocket)
     try:
         while True:
             data = await websocket.receive_text()
             if data == "ping":
-              await websocket.send_text("pong")
+              await manager.send_message("pong", websocket)
             else:
               try:
                   link_input = json.loads(data)
                   link_input["url"] = get_final_redirected_url(link_input["url"]) if link_input["type"] == "online" else link_input["url"]
                   if link_input == "invalid_url":
-                    await websocket.send_text("invalid_url")
+                    await manager.send_message("invalid_url", websocket)
                   else:
                     response = process_media(link_url=link_input["url"]) if link_input["type"] == "online" else process_media(file_path=link_input["url"])
-                    await websocket.send_json(response)
-                    await websocket.close()
+                    await manager.send_json(response, websocket)
               except Exception as e:
-                  await websocket.send_json('{"error": "process_media_error"}')
+                  await manager.send_json('{"error": "process_media_error"}', websocket)
     except WebSocketDisconnect:
         print("WebSocket disconnected")
+        manager.disconnect(websocket)
     except Exception as e:
         print(f"WebSocket error: {e}")
     finally:
