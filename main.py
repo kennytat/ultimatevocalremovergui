@@ -14,10 +14,13 @@ import requests
 # import shutil
 import tempfile
 import zipfile
-# import autochord
+from madmom.audio.chroma import DeepChromaProcessor
+from madmom.features.chords import DeepChromaChordRecognitionProcessor
 # from urllib.parse import urljoin
 
 temp_dir = os.path.join(tempfile.gettempdir(), "ultimatevocalremover")
+dcp = DeepChromaProcessor()
+dccrp = DeepChromaChordRecognitionProcessor()
 
 class LinkInput(BaseModel):
     link: str
@@ -58,10 +61,10 @@ def get_final_redirected_url(url):
       
 def chord_recognition(file_path):
   try:
-  # chord_data = autochord.recognize(file_path, lab_fn='chords.lab')
-    # chord_data = [{'start': start, 'end': end, 'name': name} for start, end, name in chord_data] if chord_data else []
-    # return chord_data
-    return []
+    chroma = dcp(file_path)
+    chord_data = dccrp(chroma)
+    chord_data = [{'start': start, 'end': end, 'name': name} for start, end, name in chord_data]
+    return chord_data
   except:
     print('chord_recognition failed::')
     return []

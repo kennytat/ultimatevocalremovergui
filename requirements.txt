@@ -52,5 +52,5 @@ fastapi
 uvicorn
 starlette
 itsdangerous
-# autochord
 websockets
+madmom @ git+https://github.com/CPJKU/madmom.git
