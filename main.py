@@ -14,6 +14,7 @@ import requests
 # import shutil
 import tempfile
 import zipfile
+import hashlib
 from madmom.audio.chroma import DeepChromaProcessor
 from madmom.features.chords import DeepChromaChordRecognitionProcessor
 # from urllib.parse import urljoin
@@ -21,6 +22,7 @@ from madmom.features.chords import DeepChromaChordRecognitionProcessor
 temp_dir = os.path.join(tempfile.gettempdir(), "ultimatevocalremover")
 dcp = DeepChromaProcessor()
 dccrp = DeepChromaChordRecognitionProcessor()
+process_files = []
 
 class LinkInput(BaseModel):
     link: str
@@ -94,23 +96,32 @@ def media_split(file_path="", link_url=""):
    
 # Define function for processing files
 def process_media(file_path='', link_url='') -> str:
-    result = media_split(file_path=file_path, link_url=link_url)
-    zip_path = result[0]
-    extract_path, _ = os.path.splitext(zip_path)
-    file_name = os.path.basename(extract_path)
-    print("prepare extract file::")
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-      zip_ref.extractall(extract_path)
-    wav_files = [os.path.join(extract_path,wav) for wav in os.listdir(extract_path) if wav.endswith('.wav')]
-    print("extracted file::", wav_files)
-    os.remove(file_path) if file_path and os.path.exists(file_path) else None
-    print(f"process_media done::", extract_path, file_name)
-    # Placeholder processing logic
-    processed_data = {
-        "fileName": file_name,
-        "wavFiles": wav_files
-    }
-    return processed_data
+    url = hashlib.md5(open(file_path, "rb").read()).hexdigest() if file_path and os.path.exists(file_path) and os.path.isfile(file_path) else (link_url if link_url else None)
+    found_items = [item for item in process_files if "url" in item and item["url"] == url] if url else None
+    if found_items and found_items[0] and "processed_data" in found_items[0] and "wavFiles" in found_items[0]["processed_data"] and found_items[0]["processed_data"]["wavFiles"][0] and os.path.exists(found_items[0]["processed_data"]["wavFiles"][0]):
+      return found_items[0]["processed_data"]
+    else:
+      result = media_split(file_path=file_path, link_url=link_url)
+      zip_path = result[0]
+      extract_path, _ = os.path.splitext(zip_path)
+      file_name = os.path.basename(extract_path)
+      print("prepare extract file::")
+      with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(extract_path)
+      wav_files = [os.path.join(extract_path,wav) for wav in os.listdir(extract_path) if wav.endswith('.wav')]
+      print("extracted file::", wav_files)
+      os.remove(file_path) if file_path and os.path.exists(file_path) else None
+      print(f"process_media done::", extract_path, file_name)
+      # Placeholder processing logic
+      processed_data = {
+          "fileName": file_name,
+          "wavFiles": wav_files
+      }
+      process_files.append({
+        "url": url,
+        "processed_data": processed_data
+      })
+      return processed_data
 
 ## Start fast api server  
 app = FastAPI()
