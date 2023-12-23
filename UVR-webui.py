@@ -1677,16 +1677,11 @@ class UVR():
                 ], outputs=media_output, api_name="convert")
 
     def start_webui(self):
-        proxy = os.getenv('API_ENABLE', '')
-        if proxy and proxy == 'true':
-          auth_user = ''
-          auth_pass = ''
-        else:
-          auth_user = os.getenv('AUTH_USER', '')
-          auth_pass = os.getenv('AUTH_PASS', '')
+        auth_user = os.getenv('AUTH_USER', '')
+        auth_pass = os.getenv('AUTH_PASS', '')
         self.demo.queue(concurrency_count=1).launch(
           auth=(auth_user, auth_pass) if auth_user != '' and auth_pass != '' else None,
-          show_api=True,
+          # show_api=True,
           debug=True,
           inbrowser=True,
           show_error=True,

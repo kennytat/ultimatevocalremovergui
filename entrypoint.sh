@@ -9,10 +9,4 @@ else
 	echo "MS_USER or MS_PASS variable is empty."
 fi
 
-# Check if API_ENABLE variables are not empty
-if [ -n "$API_ENABLE" ] && [ "$API_ENABLE" == "true" ]; then
-	python main.py &
-	python UVR-webui.py "$@"
-else
-	python UVR-webui.py "$@"
-fi
+python main.py & python UVR-webui.py "$@"

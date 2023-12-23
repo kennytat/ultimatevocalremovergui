@@ -22,11 +22,9 @@ services:
     #   COPY_OUTPUT_DIR: ""
     #   AUTH_USER: ""
     #   AUTH_PASS: ""
-    #   API_ENABLE: ""
     #   MS_USER: ""
     #   MS_PASS: ""
     volumes:
       - /mnt/backup/AI/ultimatevocalremovergui/fonts:/usr/share/fonts
       - /mnt/backup/AI/ultimatevocalremovergui/cache:/root/.cache
       - /mnt/backup/AI/ultimatevocalremovergui/models:/app/models
-      - /mnt/backup/AI/ultimatevocalremovergui/autochord:/root/.autochord

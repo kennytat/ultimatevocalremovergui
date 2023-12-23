@@ -267,7 +267,6 @@ rm -rf music-separator
 
 export MS_USER=
 export MS_PASS=
-export API_ENABLE=true
 /bin/bash entrypoint.sh
 ```
 
