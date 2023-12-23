@@ -4,6 +4,7 @@
 *.pth
 *.th
 *.yaml
+.DS_Store
 .env
 !themes/*
 templates/*

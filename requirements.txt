@@ -54,3 +54,4 @@ starlette
 itsdangerous
 websockets
 madmom @ git+https://github.com/CPJKU/madmom.git
+demucs==4.0.1
