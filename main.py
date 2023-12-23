@@ -96,7 +96,7 @@ def chord_recognition(file_path):
     print('chord_recognition failed::')
     return []
 
-def uvr(file_path, output_dir, model_name, model_dir=os.path.join("models","Demucs_Models")):
+def uvr(file_path, output_dir, model_name, model_dir=os.path.join("models","Demucs_Models","v3_v4_repo")):
     subprocess.run(['demucs', file_path, '-o', output_dir, '-n', model_name, '--repo', model_dir])
   
 # ## Call api to gradio for file processing
@@ -139,7 +139,7 @@ def media_split(file_path="", link_url=""):
     file_name = os.path.basename(base_name)
     output_dir = os.path.join(temp_dir, new_dir_now())
     model_name = "htdemucs"
-    uvr(file_path, output_dir, model_name, model_dir=os.path.join("models","Demucs_Models"))
+    uvr(file_path, output_dir, model_name, model_dir=os.path.join("models","Demucs_Models","v3_v4_repo"))
     return os.path.join(output_dir, model_name, file_name)
    
 # Define function for processing files
