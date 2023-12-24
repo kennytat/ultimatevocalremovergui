@@ -1,8 +1,8 @@
-FROM python:3.10-bullseye
+FROM python:3.9-bullseye
 
 RUN apt update -y && apt upgrade -y
 
-RUN apt -y install -qq aria2 ffmpeg wget curl git
+RUN apt -y install -qq aria2 ffmpeg wget curl git libsndfile1
 
 WORKDIR /app
 
