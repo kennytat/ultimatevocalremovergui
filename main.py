@@ -84,7 +84,8 @@ def youtube_download(url, output_path):
 def get_final_redirected_url(url):
     try:
         response = requests.head(url, allow_redirects=True)
-        final_url = re.sub(r'&.*', '', response.url)
+        print("youtube url::", response.url)
+        final_url = re.sub(r'&list.*', '', response.url)
         return final_url
     except requests.RequestException as e:
         print(f"Error: {e}")
