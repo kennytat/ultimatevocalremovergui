@@ -6,15 +6,15 @@ RUN apt -y install -qq aria2 ffmpeg wget curl git libsndfile1
 
 WORKDIR /app
 
-RUN pip install -U setuptools scikit-learn
+ARG CACHE_DIR=/root/.cache/pip
 
-ENV SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL=True
+RUN pip install -U pip setuptools numpy
 
 COPY requirements.txt ./
 
-RUN pip install -r requirements.txt 
+RUN --mount=type=cache,target=${CACHE_DIR} pip install --cache-dir=${CACHE_DIR} -r requirements.txt
 
-RUN rm -rf /root/.cache/pip && rm -rf /var/cache/apt/*
+RUN rm -rf /var/cache/apt/*
 
 COPY . .
 

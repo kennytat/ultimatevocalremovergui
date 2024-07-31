@@ -16,7 +16,9 @@ import gc
 import re
 import subprocess
 import ass
-# import soundfile as sf
+import pylrc
+import requests
+from langdetect import detect
 import time
 import torch
 import traceback
@@ -37,12 +39,20 @@ import yaml
 import sys
 import tempfile
 from datetime import datetime, timedelta
-
+from chord_extract import chord_recognition
+from utils import  is_windows_path, convert_to_wsl_path, youtube_download, find_all_media_files, find_most_matching_prefix, segments_to_srt, srt_to_segments, srt_to_lrc
+ 
 logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 logging.info('UVR BEGIN')
 
 load_dotenv()
 temp_dir = os.path.join(tempfile.gettempdir(), "ultimatevocalremover")
+gradio_temp_dir = os.getenv("GRADIO_TEMP_DIR", "/tmp/gradio-uvr")
+gradio_temp_processing_dir = os.path.join(gradio_temp_dir, "processing_dir")
+lrc_temp_dir = os.path.join(temp_dir, 'lrc')
+youtube_temp_dir = os.path.join(temp_dir, 'youtube')
+
+
 ydl = yt_dlp.YoutubeDL()
 
 CUDA_MEM = int(torch.cuda.get_device_properties(0).total_memory)
@@ -602,6 +612,8 @@ class UVR():
         super().__init__()
         
         #Placeholders
+        self.local_input_dirs = []
+        self.local_input_temp_pairs = []
         self.error_log_var = ""
         self.vr_secondary_model_names = []
         self.mdx_secondary_model_names = []
@@ -1201,47 +1213,57 @@ class UVR():
 
     def speech_to_segments(self, audio_wav, language=None, WHISPER_MODEL_SIZE=whisper_model_default, batch_size=8, chunk_size=10):
       print("Start speech_to_segments::")
+      audio_file_base = os.path.basename(audio_wav).replace(f'_({VOCAL_STEM}).wav', '')
+      target_lrc_inputpath = os.path.join(temp_dir, 'lrc', f'{audio_file_base}.lrc')
+      ## Step 1: Transcribing
       device = "cuda" if torch.cuda.is_available() else "cpu"
-      model = whisperx.load_model(
-          WHISPER_MODEL_SIZE,
-          device,
-          compute_type=compute_type_default,
-          language=language,
-          )
       audio = whisperx.load_audio(audio_wav)
-      print("Transcribing::")
-      result = model.transcribe(WHISPER_MODEL_SIZE, audio, batch_size=batch_size, chunk_size=chunk_size)
-      gc.collect(); torch.cuda.empty_cache(); del model
+      if os.path.exists(target_lrc_inputpath):
+        print("LRC File exist - start parsing::", target_lrc_inputpath)
+        ## Read lyric from file
+        with open(target_lrc_inputpath) as lrc_file:
+          lrc_string = ''.join(lrc_file.readlines())
+          subs = pylrc.parse(lrc_string)
+          try:
+            lang = detect(vars(subs[round(len(subs)/2)])['text']).split('-')[0]
+          except:
+            lang = None
+          subs = subs.toSRT() # convert lrc to srt string
+          segments = srt_to_segments(subs)
+          result = {
+            "language": language if language and language != 'Automatic detection' else lang,
+            "segments": segments
+          }
+      else:
+        print("LRC File not found - Start transcribing::")
+        model = whisperx.load_model(
+            WHISPER_MODEL_SIZE,
+            device,
+            compute_type=compute_type_default,
+            language=language,
+            )
+        result = model.transcribe(audio, batch_size=batch_size, chunk_size=chunk_size)
+        gc.collect(); torch.cuda.empty_cache(); del model
+      print("result::", result)      
+      
+      ## Step 3: Aligning
       print("Aligning::")
-      model_a, metadata = whisperx.load_align_model(
-          language_code=result["language"],
-          device=device,
-          model_name=None
-          )
-      result = whisperx.align(
-          result["segments"],
-          model_a,
-          metadata,
-          audio,
-          device,
-          return_char_alignments=True,
-          )
-      gc.collect(); torch.cuda.empty_cache(); del model_a
+      if result["language"]:
+        model_a, metadata = whisperx.load_align_model(
+            language_code=result["language"],
+            device=device,
+            model_name=None
+            )
+        result = whisperx.align(
+            result["segments"],
+            model_a,
+            metadata,
+            audio,
+            device,
+            return_char_alignments=True,
+            )
+        gc.collect(); torch.cuda.empty_cache(); del model_a
       return result
-    
-    def segments_to_srt(self, segments, output_path):
-      # print("segments_to_srt::", type(segments[0]), segments)
-      shutil.rmtree(output_path, ignore_errors=True)
-      def srt_time(str):
-        return re.sub(r"\.",",",re.sub(r"0{3}$","",str)) if re.search(r"\.\d{6}", str) else f'{str},000'
-      for index, segment in enumerate(segments):
-          startTime = srt_time(str(0)+str(timedelta(seconds=segment['start'])))
-          endTime = srt_time(str(0)+str(timedelta(seconds=segment['end'])))
-          text = segment['text']
-          segmentId = index+1
-          segment = f"{segmentId}\n{startTime} --> {endTime}\n{text[1:] if text and text[0] == ' ' else text}\n\n"
-          with open(output_path, 'a', encoding='utf-8') as srtFile:
-              srtFile.write(segment)
 
     def modify_ass(self, segments, ass_path, font_size=25):
       print("segments length:: ",len(segments), ass_path)
@@ -1323,11 +1345,58 @@ class UVR():
                 return vocal_splitter_model
                 
         return None
-                           
-    def process_start(self, inputPaths, video_burn, stt, stt_mode, stt_model, stt_language, stt_burn, stt_batch_size,stt_chuck_size,stt_font_size,uvr_method, choosen_model, progress=gr.Progress()):
+
+    def handle_link_input(self, media_inputs, link_inputs, preview_data):           
+      print("media::", media_inputs, link_inputs, preview_data)
+      media_inputs = media_inputs if media_inputs and len(media_inputs) > 0 else []
+      # print("links::", link_inputs)
+      link_inputs = link_inputs.split(',')
+      if link_inputs is not None and len(link_inputs) > 0 and link_inputs[0] != '':
+        for url in link_inputs:
+          url = url.strip().rstrip("/")
+          # print('testing url::', url.startswith( 'https://www.youtube.com' ))
+          ## Handle online link
+          if url.startswith('https://'):
+            try:
+              media_info = yt_dlp.YoutubeDL().extract_info(url, download=False)
+              Path(youtube_temp_dir).mkdir(parents=True, exist_ok=True) 
+              download_path = f"{os.path.join(youtube_temp_dir, media_info['title'])}.mp4"
+              youtube_download(url, download_path)
+              media_inputs.append(download_path) 
+            except Exception as e:
+              print('Error downloading youtube video::', e)
+              gr.Error(f"Error downloading from link: {url}")
+          ## Handle local link
+          else:
+            osPath = url if not is_windows_path(url) else convert_to_wsl_path(url)
+            if os.path.isfile(osPath):
+              media_inputs.append(osPath)
+            elif os.path.isdir(osPath):
+              tmp_dir = os.path.join(gradio_temp_processing_dir, os.path.basename(osPath))
+              print("tmp_dir::", tmp_dir, osPath)
+              self.local_input_dirs.append(tmp_dir)
+              files = find_all_media_files(osPath)
+              print(f"media found in directory:: '{osPath}' | ", files)
+              if len(files) > 0:
+                for file in files:
+                  tmp_file = os.path.join(gradio_temp_processing_dir, re.sub(r'[\'\"]', '', file.replace(os.path.dirname(osPath),"").strip('/')))
+                  subprocess.run(["mkdir", "-p", os.path.dirname(tmp_file)], capture_output=True, text=True)
+                  if not os.path.exists(tmp_file):
+                    subprocess.run(["touch", tmp_file], capture_output=True, text=True)
+                    self.local_input_temp_pairs.append({
+                      "origin": file,
+                      "temp": tmp_file
+                    })
+                    media_inputs.append(tmp_file)
+              else:
+                gr.Warning(f"No media files found in: {osPath}")
+      return media_inputs, ""
+                               
+    def process_start(self, inputPaths, video_burn, chord_detect, stt, stt_mode, stt_model, stt_language, stt_burn, stt_batch_size,stt_chuck_size,stt_font_size,uvr_method, choosen_model, progress=gr.Progress()):
         """Start the conversion for all the given mp3 and wav files"""
         print("process_start::")
         final_output = []
+            
         self.chosen_process_method_var = uvr_method
         self.vr_model_var = choosen_model if uvr_method == VR_ARCH_TYPE else None
         self.mdx_net_model_var = choosen_model if uvr_method == MDX_ARCH_TYPE else None
@@ -1358,6 +1427,15 @@ class UVR():
 
             progress(0.15, desc=f"Splitting media... 0/{len(inputPaths)}")
             for file_num, media_file in enumerate(inputPaths, start=1):
+              
+                ## Copy file to tempdir if file is in os dir
+                media_file = media_file if isinstance(media_file, str) else media_file.name
+                if media_file.startswith(gradio_temp_processing_dir):
+                  input_temp_pair = next((obj for obj in self.local_input_temp_pairs if obj['temp'] == media_file), None)
+                  if input_temp_pair:
+                    print("copying to temp::", input_temp_pair['origin'], input_temp_pair['temp'])
+                    shutil.copy(input_temp_pair['origin'], input_temp_pair['temp'])
+                    
                 export_path = os.path.join(temp_dir, new_dir_now())
                 Path(export_path).mkdir(parents=True, exist_ok=True)
                 is_audio = True if self.is_video_or_audio(media_file) == 'audio' else False
@@ -1443,6 +1521,7 @@ class UVR():
                     if current_model.process_method == DEMUCS_ARCH_TYPE:
                         seperator = SeperateDemucs(current_model, process_data)
                     seperator.seperate()
+                    del seperator
                 
                 ## Define path
                 inst_path = os.path.join(export_path, f'{audio_file_base}_({INST_STEM}).wav')
@@ -1451,17 +1530,30 @@ class UVR():
                 vocal_path = os.path.join(export_path, f'{audio_file_base}_({VOCAL_STEM}).wav')
                 srt_path = os.path.join(export_path, f'{audio_file_base}.srt')
                 ass_path = os.path.join(export_path, f'{audio_file_base}.ass')
+                lrc_path = os.path.join(export_path, f'{audio_file_base}.lrc')
                 json_path = os.path.join(export_path, f'{audio_file_base}.json')
+                chord_path = os.path.join(export_path, f'{audio_file_base}_chords.json')
+                
+                ## export chord with timestamp
+                if chord_detect and os.path.exists(bgmusic_path):
+                  chords = chord_recognition(bgmusic_path)
+                  with open(chord_path, 'a', encoding='utf-8') as chordFile:
+                    json.dump(chords, chordFile, indent=4)  
                 
                 ## export srt,ass with timestamp
                 if stt and os.path.exists(vocal_path):
                   stt_language = LANGUAGES[stt_language]
                   result_segments = self.speech_to_segments(audio_wav=vocal_path,language=stt_language, WHISPER_MODEL_SIZE=stt_model, batch_size=stt_batch_size,chunk_size=stt_chuck_size)
                   print("dumping speech_to_segments::")
+                  ## Export json file
                   with open(json_path, 'a', encoding='utf-8') as jsonFile:
                     json.dump(result_segments['segments'], jsonFile, indent=4)
-                  self.segments_to_srt(result_segments['segments'], srt_path)
+                  ## Export srt file
+                  segments_to_srt(result_segments['segments'], srt_path)
+                  ## Export lrc file
+                  srt_to_lrc(srt_path)
                   subprocess.run(['ffmpeg', '-i', srt_path, ass_path])
+                  ## Export ass file
                   self.modify_ass(result_segments['segments'], ass_path, stt_font_size)    
                               
                 ## merge video with split audio
@@ -1470,8 +1562,7 @@ class UVR():
                   if stt and stt_mode == 'Karaoke':
                     ## create video file with dual mono of original audio and removed vocals
                     ffmpeg_command = [
-                        "ffmpeg", "-i", video_file, "-i", bgmusic_path,
-                        "-filter_complex", "[0:a]pan=mono|c0=c0[a1];[1:a]pan=mono|c0=c1[a2]", "-map", "0:v", "-map", "[a1]", "-map", "[a2]", "-c:v", "libx264", "-c:a", "aac", "-strict", "experimental", media_output_file
+                        "ffmpeg", "-i", video_file, "-i", bgmusic_path, "-map", "0", "-map", "1:a", "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k", "-strict", "experimental", media_output_file
                     ]
                   else:
                     ## create video file with stereo removed vocals
@@ -1489,11 +1580,21 @@ class UVR():
                 else:
                   media_output_file = bgmusic_path
                   
-                ## Copy to custom output directory if specify 
-                COPY_OUTPUT_DIR = os.environ.get('COPY_OUTPUT_DIR', "")
-                if COPY_OUTPUT_DIR != "":
-                  print("copy video to COPY_OUTPUT_DIR::")
-                  shutil.copy(media_output_file, os.path.join(COPY_OUTPUT_DIR, os.path.basename(media_output_file)))
+                  
+                ### Copy to temporary directory
+                try:
+                  target_dir = os.getenv('COPY_OUTPUT_DIR', '')
+                  if target_dir and os.path.isdir(target_dir):
+                    print("Copying to output directory::", media_file, self.local_input_dirs)
+                    if media_file.startswith(gradio_temp_processing_dir) and len(self.local_input_dirs) > 0:
+                      most_matching_prefix = find_most_matching_prefix(self.local_input_dirs, media_file)
+                      target_dir = os.path.join(target_dir, os.path.dirname(media_file).replace(os.path.dirname(most_matching_prefix),"").strip('/')) if os.path.isdir(most_matching_prefix) else os.path.join(target_dir, "/".join(os.path.dirname(media_input).split('/')[3:]).strip('/'))
+                    subprocess.run(["mkdir", "-p", target_dir], capture_output=True, text=True)
+                    subprocess.run(["cp", media_output_file, target_dir], capture_output=True, text=True)
+                    os.system(f"rm -rf '{media_output_file}'")
+                except:
+                  print('copy to target dir failed')      
+                  
                 # Archive final output folder when done
                 archive_path = os.path.join(Path(temp_dir).absolute(), os.path.splitext(os.path.basename(audio_file))[0])
                 shutil.make_archive(archive_path, 'zip', export_path)   
@@ -1504,7 +1605,6 @@ class UVR():
                 if is_model_sample_mode:
                     if os.path.isfile(audio_file):
                         os.remove(audio_file)
-                
                 # Release torch cache    
                 torch.cuda.empty_cache()
                 
@@ -1524,7 +1624,7 @@ class UVR():
             print(f'\n\n{PROCESS_FAILED}')
             print(time_elapsed())
             self.process_end(error=e)
-        gc.collect(); torch.cuda.empty_cache(); del seperator
+        gc.collect(); torch.cuda.empty_cache()
         return final_output                
             
     def process_end(self, error=None):
@@ -1553,41 +1653,28 @@ class UVR():
             pass
         return "Unknown"
       
-    def youtube_download(self, url, output_path):
-        ydl_opts = {
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-            'force_overwrites': True,
-            'max_downloads': 5,
-            'no_warnings': True,
-            'ignore_no_formats_error': True,
-            'restrictfilenames': True,
-            'outtmpl': output_path,
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl_download:
-            ydl_download.download([url])
+    def get_final_redirected_url(self, url):
+        try:
+            response = requests.head(url, allow_redirects=True)
+            print("youtube url::", response.url)
+            final_url = re.sub(r'&list.*', '', response.url)
+            return final_url
+        except requests.RequestException as e:
+            print(f"Error: {e}")
+            return "invalid_url"       
 
-    def preprocess(self, media_inputs, link_inputs, video_burn, stt, stt_mode, stt_model, stt_language, stt_burn,stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model, progress=gr.Progress()):
+    def preprocess(self, media_inputs, lyric_inputs, video_burn, chord_detect, stt, stt_mode, stt_model, stt_language, stt_burn,stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model, progress=gr.Progress()):
       progress(0.05, desc="Processing media...")
-      print(media_inputs, link_inputs, video_burn, stt, stt_mode, stt_model, stt_language, stt_burn,stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model)
+      print(media_inputs, lyric_inputs, video_burn, stt, stt_mode, stt_model, stt_language, stt_burn,stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model)
       media_inputs = media_inputs if media_inputs is not None else []
       media_inputs = media_inputs if isinstance(media_inputs, list) else [media_inputs]
       media_inputs = [media_input if isinstance(media_input, str) else media_input.name for media_input in media_inputs]
-      youtube_temp_dir = os.path.join(temp_dir, 'youtube')
-      shutil.rmtree(youtube_temp_dir, ignore_errors=True)
-      Path(youtube_temp_dir).mkdir(parents=True, exist_ok=True)   
-      link_inputs = link_inputs.split(',')
-      print("link_inputs::", link_inputs)
-      if link_inputs is not None and len(link_inputs) > 0 and link_inputs[0] != '':
-        for url in link_inputs:
-          url = url.strip()
-          if url.startswith('https://www.youtube.com'):
-            media_info =  ydl.extract_info(url, download=False)
-            download_path = f"{os.path.join(youtube_temp_dir, media_info['title'])}.mp4"
-            self.youtube_download(url, download_path)
-            media_inputs.append(download_path) 
-      print(media_inputs, link_inputs, uvr_method, uvr_model)
+      if lyric_inputs is not None and len(lyric_inputs)> 0:
+        Path(lrc_temp_dir).mkdir(parents=True, exist_ok=True)
+        for lyric in lyric_inputs:
+          os.system(f"mv {lyric.name} {lrc_temp_dir}/")
       if media_inputs is not None and len(media_inputs) > 0 and media_inputs[0] != '':
-        output = root.process_start(media_inputs, video_burn, stt, stt_mode, stt_model, stt_language, stt_burn, stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model)
+        output = root.process_start(media_inputs, video_burn, chord_detect, stt, stt_mode, stt_model, stt_language, stt_burn, stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model)
         return output
       else:
         raise gr.Error("Input not valid!!")
@@ -1613,13 +1700,18 @@ class UVR():
                     with gr.Column():
                         #media_input = gr.UploadButton("Click to Upload a video", file_types=["video"], file_count="single") #gr.Video() # height=300,width=300
                         media_input = gr.File(label="VIDEO|AUDIO",file_count='multiple', file_types=['audio','video'])
-                        link_input = gr.Textbox(label="Youtube Link",info="Example: https://www.youtube.com/watch?v=-biOGdYiF-I,https://www.youtube.com/watch?v=-biOGdYiF-I", type="text", placeholder="URL goes here, seperate by comma...")        
                         with gr.Row():
-                          video_burn = gr.Checkbox(label="Enable",  value=True, info='Export with video', visible=False,scale=1)
-                          stt = gr.Checkbox(label="Enable",  value=False,info='Export subtitle with timestamp',scale=1)
-                        with gr.Accordion(label="Subtitle Option", visible=False) as stt_option:
+                          link_input = gr.Textbox(label="Youtube Link or OS Path",info="Example: https://www.youtube.com/watch?v=-biOGdYiF-I,https://www.youtube.com/watch?v=-biOGdYiF-I", type="text", placeholder="URLs go here, seperate by comma...", scale=5)        
+                          link_btn = gr.Button("Upload", size="sm", scale=1)
+                        lyric_input = gr.File(label="Lyric Input", file_count='multiple', file_types=['.lrc'])        
+
+                        with gr.Row():
+                          video_burn = gr.Checkbox(label="Enable", value=True, info='Export with video', visible=False,scale=1)
+                          chord_detect = gr.Checkbox(label="Enable",  value=True,info='Export chords for music',scale=1)
+                          stt = gr.Checkbox(label="Enable",  value=True,info='Export subtitle with timestamp',scale=1)
+                        with gr.Accordion(label="Subtitle Option", visible=True) as stt_option:
                           with gr.Row():
-                            stt_mode = gr.Dropdown(['Normal', 'Karaoke'], label='Subtitle Mode', value='Normal',scale=1)
+                            stt_mode = gr.Dropdown(['Normal', 'Karaoke'], label='Subtitle Mode', value='Karaoke',scale=1)
                             stt_model = gr.Dropdown(['tiny', 'base', 'small', 'medium', 'large-v1', 'large-v2', 'large-v3'], value=whisper_model_default, label="Whisper model", scale=1)
                             stt_language = gr.Dropdown(['Automatic detection', 'Arabic (ar)', 'Cantonese (yue)', 'Chinese (zh)', 'Czech (cs)', 'Danish (da)', 'Dutch (nl)', 'English (en)', 'Finnish (fi)', 'French (fr)', 'German (de)', 'Greek (el)', 'Hebrew (he)', 'Hindi (hi)', 'Hungarian (hu)', 'Italian (it)', 'Japanese (ja)', 'Korean (ko)', 'Persian (fa)', 'Polish (pl)', 'Portuguese (pt)', 'Russian (ru)', 'Spanish (es)', 'Turkish (tr)', 'Ukrainian (uk)', 'Urdu (ur)', 'Vietnamese (vi)'], label='Target language', value='Automatic detection',scale=1)
                             stt_burn = gr.Checkbox(label="Enable",  value=False, info='Burn subtitle into video',scale=1)
@@ -1659,10 +1751,12 @@ class UVR():
                             media_button = gr.Button("CONVERT", )
                         with gr.Row():
                             media_output = gr.Files(label="DOWNLOAD CONVERTED VIDEO")
+            link_btn.click(self.handle_link_input, inputs=[media_input, link_input], outputs=[media_input, link_input])
             media_button.click(self.preprocess, inputs=[
                 media_input,
-                link_input,
+                lyric_input,
                 video_burn,
+                chord_detect,
                 stt,
                 stt_mode,
                 stt_model,
@@ -1679,7 +1773,7 @@ class UVR():
     def start_webui(self):
         auth_user = os.getenv('AUTH_USER', '')
         auth_pass = os.getenv('AUTH_PASS', '')
-        self.demo.queue(concurrency_count=1).launch(
+        self.demo.queue().launch(
           auth=(auth_user, auth_pass) if auth_user != '' and auth_pass != '' else None,
           # show_api=True,
           debug=True,

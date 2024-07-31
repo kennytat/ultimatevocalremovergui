@@ -26,8 +26,7 @@ PyYAML==6.0
 resampy==0.4.2
 scipy==1.9.3
 soundstretch==1.2
-torch
-urllib3==1.26.12
+urllib3
 wget==3.2
 samplerate==0.1.0
 screeninfo==0.8.1
@@ -39,20 +38,28 @@ onnxruntime-gpu
 onnx2pytorch
 soundFile; sys_platform != 'darwin'
 PySoundFile==0.9.0.post1; sys_platform == 'darwin'
-Dora==0.0.3
-numpy==1.23.5
-yt-dlp
+numpy
+###
+--extra-index-url https://download.pytorch.org/whl/cu121 torch==2.3.1+cu121 torchvision==0.18.1+cu121 torchaudio==2.3.1+cu121
+whisperx @ git+https://github.com/m-bain/whisperx.git
 ass
+srt
+pylrc
+natsort
 python-dotenv
 ffmpeg-python>=0.2.0
-whisperx @ git+https://github.com/kennytat/whisperx.git@large-v3
-gradio==3.50.2
+gradio==4.29.0
+babel
+colorama
+multiprocess
+yt_dlp
+langdetect
 ## For fastapi and music separator webUI server
 fastapi
 uvicorn
 starlette
 itsdangerous
 websockets
-chord-extractor
-# madmom @ git+https://github.com/CPJKU/madmom.git
+vamp
+chord_extractor @ git+https://github.com/kennytat/chord-extractor.git
 demucs==4.0.1

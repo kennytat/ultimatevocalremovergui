@@ -16,8 +16,8 @@ import subprocess
 import tempfile
 import shutil
 from pathlib import Path
-from chord_extractor.extractors import Chordino
 from datetime import datetime
+from chord_extract import chord_recognition
 # from madmom.audio.chroma import DeepChromaProcessor
 # from madmom.features.chords import DeepChromaChordRecognitionProcessor
 # import zipfile
@@ -30,7 +30,6 @@ temp_dir = os.path.join(tempfile.gettempdir(), "ultimatevocalremover")
 youtube_temp_dir = os.path.join(temp_dir, 'youtube')
 shutil.rmtree(youtube_temp_dir, ignore_errors=True)
 Path(youtube_temp_dir).mkdir(parents=True, exist_ok=True) 
-chordino = Chordino(roll_on=1)  
 
 process_files = []
 ydl = yt_dlp.YoutubeDL()
@@ -90,20 +89,6 @@ def get_final_redirected_url(url):
     except requests.RequestException as e:
         print(f"Error: {e}")
         return "invalid_url"
-
-def chord_recognition(file_path):
-  try:
-    chord_data = chordino.extract(file_path)
-    # chroma = dcp(file_path)
-    # chord_data = dccrp(chroma)
-    # chord_data = [{'start': start, 'end': end, 'name': name} for start, end, name in chord_data]
-    chord_data = [{'start': chord_data[i].timestamp, 'end': chord_data[i + 1].timestamp if i + 1 < len(chord_data) else None, 'name': chord_data[i].chord} for i in range(len(chord_data))]
-    chord_data = [chord for chord in chord_data if chord['name'] != 'N']
-    print(chord_data)
-    return chord_data
-  except:
-    print('chord_recognition failed::')
-    return []
   
 def uvr(file_path, output_dir, model_name, model_dir=os.path.join("models","Demucs_Models","v3_v4_repo")):
     subprocess.run(['demucs', file_path, '-o', output_dir, '-n', model_name, '--repo', model_dir])
