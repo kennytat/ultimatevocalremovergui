@@ -1392,7 +1392,7 @@ class UVR():
                 gr.Warning(f"No media files found in: {osPath}")
       return media_inputs, ""
                                
-    def process_start(self, inputPaths, video_burn, chord_detect, stt, stt_mode, stt_model, stt_language, stt_burn, stt_batch_size,stt_chuck_size,stt_font_size,uvr_method, choosen_model, progress=gr.Progress()):
+    def process_start(self, inputPaths, video_burn, chord_detect, stt, stt_mode, stt_model, stt_language, stt_burn, stt_batch_size,stt_chunk_size,stt_font_size,uvr_method, choosen_model, progress=gr.Progress()):
         """Start the conversion for all the given mp3 and wav files"""
         print("process_start::")
         final_output = []
@@ -1543,7 +1543,7 @@ class UVR():
                 ## export srt,ass with timestamp
                 if stt and os.path.exists(vocal_path):
                   stt_language = LANGUAGES[stt_language]
-                  result_segments = self.speech_to_segments(audio_wav=vocal_path,language=stt_language, WHISPER_MODEL_SIZE=stt_model, batch_size=stt_batch_size,chunk_size=stt_chuck_size)
+                  result_segments = self.speech_to_segments(audio_wav=vocal_path,language=stt_language, WHISPER_MODEL_SIZE=stt_model, batch_size=stt_batch_size,chunk_size=stt_chunk_size)
                   print("dumping speech_to_segments::")
                   ## Export json file
                   with open(json_path, 'a', encoding='utf-8') as jsonFile:
@@ -1562,19 +1562,20 @@ class UVR():
                   if stt and stt_mode == 'Karaoke':
                     ## create video file with dual mono of original audio and removed vocals
                     ffmpeg_command = [
-                        "ffmpeg", "-i", video_file, "-i", bgmusic_path, "-map", "0", "-map", "1:a", "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k", "-strict", "experimental", media_output_file
+                        "ffmpeg", "-hwaccel", "auto", "-i", video_file, "-i", bgmusic_path, 
+                        "-map", "0", "-map", "1:a", "-c:v", "h264_nvenc", "-c:a", "aac", "-b:a", "192k", "-strict", "experimental", media_output_file
                     ]
                   else:
                     ## create video file with stereo removed vocals
                     ffmpeg_command = [
-                        "ffmpeg", "-i", video_file, "-i", bgmusic_path,
-                        "-c:v", "copy", "-c:a", "aac", "-map", "0:v", "-map", "1:a", "-shortest", media_output_file
+                        "ffmpeg", "-hwaccel", "auto", "-i", video_file, "-i", bgmusic_path,
+                        "-c:v", "h264_nvenc", "-c:a", "aac", "-map", "0:v", "-map", "1:a", "-shortest", media_output_file
                     ]
                   if stt and stt_burn and os.path.exists(ass_path):
                     if stt_mode == 'Karaoke':
-                      ffmpeg_command[5:5] = ["-vf", f"ass='{ass_path}'"]
+                      ffmpeg_command[7:7] = ["-vf", f"ass='{ass_path}'"]
                     else:
-                      ffmpeg_command[5:5] = ["-vf", f"subtitles='{srt_path}'"]
+                      ffmpeg_command[7:7] = ["-vf", f"subtitles='{srt_path}'"]
                   print("merging video::", ffmpeg_command)
                   subprocess.run(ffmpeg_command)
                 else:
@@ -1663,9 +1664,9 @@ class UVR():
             print(f"Error: {e}")
             return "invalid_url"       
 
-    def preprocess(self, media_inputs, lyric_inputs, video_burn, chord_detect, stt, stt_mode, stt_model, stt_language, stt_burn,stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model, progress=gr.Progress()):
+    def preprocess(self, media_inputs, lyric_inputs, video_burn, chord_detect, stt, stt_mode, stt_model, stt_language, stt_burn,stt_batch_size,stt_chunk_size, stt_font_size,uvr_method, uvr_model, progress=gr.Progress()):
       progress(0.05, desc="Processing media...")
-      print(media_inputs, lyric_inputs, video_burn, stt, stt_mode, stt_model, stt_language, stt_burn,stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model)
+      print(media_inputs, lyric_inputs, video_burn, stt, stt_mode, stt_model, stt_language, stt_burn,stt_batch_size,stt_chunk_size, stt_font_size,uvr_method, uvr_model)
       media_inputs = media_inputs if media_inputs is not None else []
       media_inputs = media_inputs if isinstance(media_inputs, list) else [media_inputs]
       media_inputs = [media_input if isinstance(media_input, str) else media_input.name for media_input in media_inputs]
@@ -1674,7 +1675,7 @@ class UVR():
         for lyric in lyric_inputs:
           os.system(f"mv {lyric.name} {lrc_temp_dir}/")
       if media_inputs is not None and len(media_inputs) > 0 and media_inputs[0] != '':
-        output = root.process_start(media_inputs, video_burn, chord_detect, stt, stt_mode, stt_model, stt_language, stt_burn, stt_batch_size,stt_chuck_size, stt_font_size,uvr_method, uvr_model)
+        output = root.process_start(media_inputs, video_burn, chord_detect, stt, stt_mode, stt_model, stt_language, stt_burn, stt_batch_size,stt_chunk_size, stt_font_size,uvr_method, uvr_model)
         return output
       else:
         raise gr.Error("Input not valid!!")
@@ -1707,17 +1708,17 @@ class UVR():
 
                         with gr.Row():
                           video_burn = gr.Checkbox(label="Enable", value=True, info='Export with video', visible=False,scale=1)
-                          chord_detect = gr.Checkbox(label="Enable",  value=True,info='Export chords for music',scale=1)
+                          chord_detect = gr.Checkbox(label="Enable",  value=False,info='Export chords for music',scale=1)
                           stt = gr.Checkbox(label="Enable",  value=True,info='Export subtitle with timestamp',scale=1)
                         with gr.Accordion(label="Subtitle Option", visible=True) as stt_option:
                           with gr.Row():
                             stt_mode = gr.Dropdown(['Normal', 'Karaoke'], label='Subtitle Mode', value='Karaoke',scale=1)
                             stt_model = gr.Dropdown(['tiny', 'base', 'small', 'medium', 'large-v1', 'large-v2', 'large-v3'], value=whisper_model_default, label="Whisper model", scale=1)
-                            stt_language = gr.Dropdown(['Automatic detection', 'Arabic (ar)', 'Cantonese (yue)', 'Chinese (zh)', 'Czech (cs)', 'Danish (da)', 'Dutch (nl)', 'English (en)', 'Finnish (fi)', 'French (fr)', 'German (de)', 'Greek (el)', 'Hebrew (he)', 'Hindi (hi)', 'Hungarian (hu)', 'Italian (it)', 'Japanese (ja)', 'Korean (ko)', 'Persian (fa)', 'Polish (pl)', 'Portuguese (pt)', 'Russian (ru)', 'Spanish (es)', 'Turkish (tr)', 'Ukrainian (uk)', 'Urdu (ur)', 'Vietnamese (vi)'], label='Target language', value='Automatic detection',scale=1)
+                            stt_language = gr.Dropdown(['Automatic detection', 'Arabic (ar)', 'Cantonese (yue)', 'Chinese (zh)', 'Czech (cs)', 'Danish (da)', 'Dutch (nl)', 'English (en)', 'Finnish (fi)', 'French (fr)', 'German (de)', 'Greek (el)', 'Hebrew (he)', 'Hindi (hi)', 'Hungarian (hu)', 'Italian (it)', 'Japanese (ja)', 'Korean (ko)', 'Persian (fa)', 'Polish (pl)', 'Portuguese (pt)', 'Russian (ru)', 'Spanish (es)', 'Turkish (tr)', 'Ukrainian (uk)', 'Urdu (ur)', 'Vietnamese (vi)'], label='Target language', value='Chinese (zh)',scale=1)
                             stt_burn = gr.Checkbox(label="Enable",  value=False, info='Burn subtitle into video',scale=1)
                           with gr.Row():  
                             stt_batch_size =gr.Slider(minimum=2, maximum=50, value=round(int(torch.cuda.get_device_properties(0).total_memory)*1.6/1000000000), label="Batch Size", step=1,scale=1)
-                            stt_chuck_size = gr.Slider(minimum=5, maximum=50, value=10, label="Chuck Size", step=1,scale=1)
+                            stt_chunk_size = gr.Slider(minimum=5, maximum=50, value=5, label="Chuck Size", step=1,scale=1)
                             stt_font_size = gr.Slider(minimum=10, maximum=30, value=25, label="Font Size", step=1,scale=1)
                           def update_visible(stt_check):
                             return  gr.update(visible=stt_check)
@@ -1763,7 +1764,7 @@ class UVR():
                 stt_language,
                 stt_burn,
                 stt_batch_size,
-                stt_chuck_size,
+                stt_chunk_size,
                 stt_font_size,
                 uvr_type,
                 uvr_model,
@@ -1775,7 +1776,7 @@ class UVR():
         auth_pass = os.getenv('AUTH_PASS', '')
         self.demo.queue().launch(
           auth=(auth_user, auth_pass) if auth_user != '' and auth_pass != '' else None,
-          # show_api=True,
+          show_api=True,
           debug=True,
           inbrowser=True,
           show_error=True,

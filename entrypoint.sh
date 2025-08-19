@@ -9,4 +9,5 @@ else
 	echo "MS_USER or MS_PASS variable is empty."
 fi
 
+pip install -U yt_dlp
 python main.py & python UVR-webui.py "$@"

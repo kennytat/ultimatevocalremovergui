@@ -24,7 +24,7 @@ pyrubberband==0.3.0
 pytorch_lightning==2.0.0
 PyYAML==6.0
 resampy==0.4.2
-scipy==1.9.3
+scipy
 soundstretch==1.2
 urllib3
 wget==3.2
@@ -39,16 +39,15 @@ onnx2pytorch
 soundFile; sys_platform != 'darwin'
 PySoundFile==0.9.0.post1; sys_platform == 'darwin'
 numpy
-###
---extra-index-url https://download.pytorch.org/whl/cu121 torch==2.3.1+cu121 torchvision==0.18.1+cu121 torchaudio==2.3.1+cu121
-whisperx @ git+https://github.com/m-bain/whisperx.git
+--extra-index-url https://download.pytorch.org/whl/cu121 torch==2.5.1+cu121 torchvision==0.20.1+cu121 torchaudio==2.5.1+cu121
+whisperx @ git+https://github.com/m-bain/whisperx.git@v3.2.0
 ass
 srt
 pylrc
 natsort
 python-dotenv
 ffmpeg-python>=0.2.0
-gradio==4.29.0
+gradio==5.42.0
 babel
 colorama
 multiprocess
@@ -60,6 +59,5 @@ uvicorn
 starlette
 itsdangerous
 websockets
-vamp
-chord_extractor @ git+https://github.com/kennytat/chord-extractor.git
+chord-extractor
 demucs==4.0.1
